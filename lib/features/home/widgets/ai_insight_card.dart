@@ -57,7 +57,7 @@ class AIInsightCard extends StatelessWidget {
                 IconButton(
                   onPressed: onAction,
                   tooltip: '執事に詳しく聞く',
-                  icon: const Icon(LucideIcons.messageSquareText, size: 22, color: Colors.white54),
+                  icon: const Icon(LucideIcons.messageSquare, size: 22, color: Colors.white54),
                 ),
             ],
           ),
