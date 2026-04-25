@@ -1,74 +1,73 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
-import 'screens/profile_screen.dart';
-import 'screens/settings_screen.dart';
-import 'theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/theme/app_theme.dart';
+import 'features/home/widgets/clock_weather_section.dart';
+import 'features/home/widgets/ai_insight_card.dart';
 
 void main() {
-  runApp(const ModernTemplateApp());
+  runApp(const ProviderScope(child: MyButlerLauncher()));
 }
 
-class ModernTemplateApp extends StatelessWidget {
-  const ModernTemplateApp({super.key});
+class MyButlerLauncher extends StatelessWidget {
+  const MyButlerLauncher({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Modern Template',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
-      home: const MainNavigator(),
+      title: 'MY AI BUTLER',
       debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      home: const HomeScreen(),
     );
   }
 }
 
-class MainNavigator extends StatefulWidget {
-  const MainNavigator({super.key});
-
-  @override
-  State<MainNavigator> createState() => _MainNavigatorState();
-}
-
-class _MainNavigatorState extends State<MainNavigator> {
-  int _currentIndex = 0;
-  
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const ProfileScreen(),
-    const SettingsScreen(),
-  ];
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+      body: Stack(
+        children: [
+          // Background Image
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/forest_bg.jpg',
+              fit: BoxFit.cover,
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
+          // Gradient Overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.3),
+                    Colors.black.withOpacity(0.6),
+                  ],
+                ),
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
+          // Content
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const ClockWeatherSection(),
+                  const Spacer(),
+                  const AIInsightCard(
+                    text: '主人、おはようございます。本日は午後から雨の予報です。\n• 14時の会議資料の準備は整っておりますか？\n• クリーニングの受け取りが本日までとなっております。',
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
           ),
         ],
       ),

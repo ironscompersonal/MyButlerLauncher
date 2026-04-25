@@ -1,26 +1,28 @@
-name: flutter_modern_template
-description: "🚀 Android-focused Flutter template with Material 3, rich Dart code, and modern architecture"
-publish_to: 'none'
-
+name: ai_butler_launcher
+description: A premium AI Butler Launcher for Android.
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.5.0
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.5.1
+  google_generative_ai: ^0.4.5
+  google_fonts: ^6.2.1
+  intl: ^0.19.0
+  glass: ^1.1.2
+  lucide_icons: ^0.453.0
+  flutter_svg: ^2.0.10+1
+  shared_preferences: ^2.2.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
-
-# Platform-specific configuration
-platforms:
-  android:
-    default_package: flutter_modern_template
+  assets:
+    - assets/images/forest_bg.jpg
