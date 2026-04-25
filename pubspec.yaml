@@ -12,7 +12,7 @@ dependencies:
   google_generative_ai: ^0.4.5
   google_fonts: ^6.2.1
   intl: ^0.19.0
-  glass: ^1.1.2
+  glass: ^2.0.0+2
   lucide_icons: ^0.257.0
   flutter_svg: ^2.0.10+1
   shared_preferences: ^2.2.3
