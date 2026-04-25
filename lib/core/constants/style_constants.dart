@@ -14,6 +14,7 @@ class StyleConstants {
   
   static const String fontSans = 'Outfit';
   
+  static const Color themeAccent = primaryBlue;
   static const Color statusLineNormal = primaryBlue;
   static const Color statusLineAlert = accentRed;
   static const Color statusLineThinking = Colors.amber;

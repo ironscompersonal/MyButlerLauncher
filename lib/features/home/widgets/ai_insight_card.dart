@@ -3,19 +3,30 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/style_constants.dart';
 import 'glass_card.dart';
 
-class AIInsightCard extends StatelessWidget {
-  final String text;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/home_providers.dart';
+
+class AIInsightCard extends ConsumerWidget {
   final VoidCallback? onAction;
 
   const AIInsightCard({
     super.key,
-    required this.text,
     this.onAction,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final aiInsight = ref.watch(aiInsightProvider);
     final theme = Theme.of(context);
+    
+    return aiInsight.when(
+      data: (text) => _buildCard(context, text, theme),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => _buildCard(context, '主人、情報の整理中にエラーが発生いたしました。', theme),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, String text, ThemeData theme) {
     final lines = text.split('\n');
     
     Color accentColor = StyleConstants.statusLineNormal;
@@ -96,7 +107,7 @@ class AIInsightCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(
                 trimmed,
-                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w400, fontSize: 20),
+                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w400, fontSize: 18),
               ),
             );
           }),
