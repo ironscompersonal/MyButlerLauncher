@@ -7,6 +7,7 @@ import 'features/home/widgets/profile_icon.dart';
 import 'features/home/widgets/calendar_card.dart';
 import 'features/home/widgets/chat_overlay.dart';
 import 'features/home/widgets/app_drawer.dart';
+import 'features/home/widgets/service_status_dashboard.dart';
 import 'core/services/notification_service.dart';
 import 'features/home/providers/home_providers.dart';
 
@@ -199,7 +200,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 20),
           const CalendarCard(),
-          const SizedBox(height: 100), // 余白
+          const SizedBox(height: 20),
+          const ServiceStatusDashboard(),
+          const SizedBox(height: 120), // 余白
         ],
       ),
     );

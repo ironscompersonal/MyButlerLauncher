@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class WeatherData {
@@ -13,7 +14,6 @@ class WeatherData {
   });
 
   String get conditionText {
-    // WMO Weather interpretation codes (WW)
     if (weatherCode == 0) return '晴天';
     if (weatherCode <= 3) return '晴れ時々曇り';
     if (weatherCode <= 48) return '霧';
@@ -26,28 +26,38 @@ class WeatherData {
 }
 
 class WeatherService {
-  // Open-Meteo API (No API key required for non-commercial use)
   static const String _baseUrl = 'https://api.open-meteo.com/v1/forecast';
 
   Future<WeatherData> fetchWeather(double lat, double lon) async {
+    // 最新のパラメータ形式に更新
     final url = Uri.parse(
-      '$_baseUrl?latitude=$lat&longitude=$lon&current_weather=true&timezone=auto'
+      '$_baseUrl?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto'
     );
 
     try {
+      if (kDebugMode) print('Fetching weather from: $url');
+      
       final response = await http.get(url);
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final current = data['current_weather'];
+        final current = data['current'];
+        
+        if (current == null) {
+          throw Exception('Weather data (current) not found in response');
+        }
+
         return WeatherData(
-          temperature: current['temperature'],
-          weatherCode: current['weathercode'],
-          location: 'NAKAHARA KU', // 将来的に逆ジオコーディングで取得
+          temperature: (current['temperature_2m'] as num).toDouble(),
+          weatherCode: (current['weather_code'] as num).toInt(),
+          location: 'NAKAHARA KU',
         );
       } else {
-        throw Exception('Failed to load weather');
+        if (kDebugMode) print('Weather API Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to load weather: ${response.statusCode}');
       }
     } catch (e) {
+      if (kDebugMode) print('Weather Service Exception: $e');
       rethrow;
     }
   }

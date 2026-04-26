@@ -39,7 +39,7 @@ class ClockWeatherSection extends ConsumerWidget {
               Text(
                 DateFormat('HH:mm').format(now),
                 style: theme.textTheme.displayLarge?.copyWith(
-                  fontSize: isPortrait ? 130 : 80, // 約150%相当の巨大化
+                  fontSize: isPortrait ? 104 : 64, // 80%にサイズダウン
                   fontWeight: FontWeight.w200,
                   letterSpacing: -2,
                 ),

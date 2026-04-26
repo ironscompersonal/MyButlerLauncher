@@ -12,6 +12,40 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:googleapis/calendar/v3.dart' as calendar;
 import '../../../core/constants/api_constants.dart';
 
+// --- Service Status ---
+
+enum ServiceStatus { success, error, loading, idle }
+
+final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
+  final ai = ref.watch(aiInsightProvider);
+  final weather = ref.watch(weatherProvider);
+  final calendar = ref.watch(calendarEventsProvider);
+  final user = ref.watch(googleUserProvider);
+
+  return {
+    'Gemini AI': ai.when(
+      data: (d) => d.contains('エラー') || d.contains('不具合') ? ServiceStatus.error : ServiceStatus.success,
+      error: (_, __) => ServiceStatus.error,
+      loading: () => ServiceStatus.loading,
+    ),
+    'Weather': weather.when(
+      data: (_) => ServiceStatus.success,
+      error: (_, __) => ServiceStatus.error,
+      loading: () => ServiceStatus.loading,
+    ),
+    'Google': user == null 
+      ? ServiceStatus.idle 
+      : calendar.when(
+          data: (_) => ServiceStatus.success,
+          error: (_, __) => ServiceStatus.error,
+          loading: () => ServiceStatus.loading,
+        ),
+    'Messenger': ref.watch(notificationListProvider).isNotEmpty 
+      ? ServiceStatus.success 
+      : ServiceStatus.idle,
+  };
+});
+
 // --- Google Sign In Providers ---
 
 final googleSignInProvider = Provider((ref) => GoogleSignIn(
