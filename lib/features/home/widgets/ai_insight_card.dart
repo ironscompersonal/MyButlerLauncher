@@ -21,8 +21,13 @@ class AIInsightCard extends ConsumerWidget {
     
     return aiInsight.when(
       data: (text) => _buildCard(context, text, theme),
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, stack) => _buildCard(context, '主人、情報の整理中にエラーが発生いたしました。', theme),
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (err, stack) => _buildCard(context, '主人、情報の整理中にエラーが発生いたしました。\n詳細: $err', theme),
     );
   }
 

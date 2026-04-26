@@ -1,16 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../providers/home_providers.dart';
+import '../../../core/services/weather_service.dart';
 
-class ClockWeatherSection extends StatelessWidget {
+class ClockWeatherSection extends ConsumerWidget {
   const ClockWeatherSection({super.key});
 
+  IconData _getWeatherIcon(int code) {
+    if (code == 0) return LucideIcons.sun;
+    if (code <= 3) return LucideIcons.cloudSun;
+    if (code <= 48) return LucideIcons.cloudFog;
+    if (code <= 67) return LucideIcons.cloudRain;
+    if (code <= 77) return LucideIcons.cloudSnow;
+    if (code <= 82) return LucideIcons.cloudRain;
+    if (code <= 99) return LucideIcons.cloudLightning;
+    return LucideIcons.helpCircle;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final now = DateTime.now();
     final size = MediaQuery.of(context).size;
     final isPortrait = size.width < 600;
+    final weatherAsync = ref.watch(weatherProvider);
 
     return Column(
       crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
@@ -42,31 +57,33 @@ class ClockWeatherSection extends StatelessWidget {
         ),
         const SizedBox(height: 32),
         // Weather Section
-        Row(
-          mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
-          children: [
-            const Icon(LucideIcons.cloudSun, size: 48, color: Colors.white),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '18°',
-                  style: theme.textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.w300),
-                ),
-                Text(
-                  'NAKAHARA KU',
-                  style: theme.textTheme.titleMedium?.copyWith(letterSpacing: 2.0, color: Colors.white60, fontSize: 12),
-                ),
-              ],
-            ),
-            if (!isPortrait) ...[
-              const SizedBox(width: 40),
-              _ForecastItem(day: 'SUN', icon: LucideIcons.cloud, temp: '19°'),
-              const SizedBox(width: 24),
-              _ForecastItem(day: 'MON', icon: LucideIcons.cloudRain, temp: '17°'),
-            ]
-          ],
+        weatherAsync.when(
+          data: (weather) => Row(
+            mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
+            children: [
+              Icon(_getWeatherIcon(weather.weatherCode), size: 48, color: Colors.white),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${weather.temperature.round()}°',
+                    style: theme.textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.w300),
+                  ),
+                  Text(
+                    weather.location,
+                    style: theme.textTheme.titleMedium?.copyWith(letterSpacing: 2.0, color: Colors.white60, fontSize: 12),
+                  ),
+                ],
+              ),
+              if (!isPortrait) ...[
+                const SizedBox(width: 40),
+                const _ForecastItem(day: 'NOW', icon: LucideIcons.activity, temp: 'REALTIME'),
+              ]
+            ],
+          ),
+          loading: () => const CircularProgressIndicator(),
+          error: (err, stack) => const Text('天気取得エラー', style: TextStyle(color: Colors.white54)),
         ),
         if (isPortrait) ...[
           const SizedBox(height: 24),
