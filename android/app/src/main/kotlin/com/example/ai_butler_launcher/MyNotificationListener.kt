@@ -22,13 +22,29 @@ class MyNotificationListener : NotificationListenerService() {
         sbn?.let {
             val packageName = it.packageName
             val extras = it.notification.extras
+            
+            // 基本情報の取得
             val title = extras.getString("android.title") ?: ""
             val text = extras.getCharSequence("android.text")?.toString() ?: ""
             
-            val data = mapOf(
+            // メッセンジャー特有の情報の取得
+            val conversationTitle = extras.getCharSequence("android.conversationTitle")?.toString() ?: ""
+            val isGroupChat = extras.getBoolean("android.isGroupConversation")
+            
+            // 送信者名の特定 (MessagingStyleから)
+            val sender = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                extras.getCharSequence("android.messagingStyleUser")?.toString() ?: title
+            } else {
+                title
+            }
+
+            val data = mutableMapOf(
                 "packageName" to packageName,
                 "title" to title,
                 "text" to text,
+                "sender" to sender,
+                "conversationTitle" to conversationTitle,
+                "isGroupChat" to isGroupChat,
                 "timestamp" to it.postTime
             )
             

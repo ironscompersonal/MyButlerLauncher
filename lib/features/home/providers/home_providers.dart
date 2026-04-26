@@ -73,10 +73,29 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
     return '主人、現在報告すべき新しい情報はございません。\n穏やかな時間をお過ごしください。';
   }
 
-  final service = AIInsightService(apiKey);
-  final notificationData = notifications.map((n) => 
-    "アプリ: ${n['packageName']}, タイトル: ${n['title']}, 本文: ${n['text']}"
-  ).join('\n---\n');
+  final notificationData = notifications.map((n) {
+    final pkg = n['packageName'] ?? '';
+    final sender = n['sender'] ?? '';
+    final group = n['conversationTitle'] ?? '';
+    final title = n['title'] ?? '';
+    final text = n['text'] ?? '';
+    
+    // アプリ名の簡易判定
+    String appName = pkg.toString().split('.').last;
+    if (pkg.contains('line')) appName = 'LINE';
+    if (pkg.contains('whatsapp')) appName = 'WhatsApp';
+
+    String info = "アプリ: $appName, ";
+    if (group.isNotEmpty) {
+      info += "グループ: $group, 送信者: $sender, ";
+    } else if (sender.isNotEmpty && sender != title) {
+      info += "送信者: $sender, ";
+    } else {
+      info += "タイトル: $title, ";
+    }
+    info += "本文: $text";
+    return info;
+  }).join('\n---\n');
 
   final rawData = '【通知履歴】\n$notificationData\n$googleInfo';
   try {
