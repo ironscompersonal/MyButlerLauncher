@@ -97,6 +97,7 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
     return info;
   }).join('\n---\n');
 
+  final service = AIInsightService(apiKey);
   final rawData = '【通知履歴】\n$notificationData\n$googleInfo';
   try {
     return await service.getSimplifiedInsight(rawData);
