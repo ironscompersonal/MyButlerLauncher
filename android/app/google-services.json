@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "340547038394",
+    "project_id": "mybutlerlauncher-7b6bc",
+    "storage_bucket": "mybutlerlauncher-7b6bc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:340547038394:android:2bb60fd0cc8c190d692683",
+        "android_client_info": {
+          "package_name": "com.mybutler.launcher_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "340547038394-sp0cm2d0g9bnfspt8p4odnc3948tld26.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mybutler.launcher_app",
+            "certificate_hash": "dd191c29ece795aa5102b661f3e289699cbac28e"
+          }
+        },
+        {
+          "client_id": "340547038394-2ltt55m50v217ktr11305u6hfo6hmamc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCf4CwQjxSSzXQaGfJXSgiPBC_bU1RSHgE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "340547038394-2ltt55m50v217ktr11305u6hfo6hmamc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

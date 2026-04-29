@@ -4,12 +4,20 @@ import '../providers/home_providers.dart';
 import 'glass_card.dart';
 import '../../../core/constants/style_constants.dart';
 
-class AppDrawer extends ConsumerWidget {
+class AppDrawer extends ConsumerStatefulWidget {
   const AppDrawer({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends ConsumerState<AppDrawer> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
     final appsAsync = ref.watch(installedAppsProvider);
+    final usageStats = ref.watch(appUsageProvider);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -29,48 +37,85 @@ class AppDrawer extends ConsumerWidget {
           Expanded(
             child: appsAsync.when(
               data: (apps) {
-                // 名前順にソート
+                // AIによるアレンジ（利用頻度順にソート、同数の場合は名前順）
                 final sortedApps = List<Map<String, dynamic>>.from(apps)
-                  ..sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
+                  ..sort((a, b) {
+                    final countA = usageStats[a['packageName']] ?? 0;
+                    final countB = usageStats[b['packageName']] ?? 0;
+                    if (countA != countB) {
+                      return countB.compareTo(countA); // 降順
+                    }
+                    return (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase());
+                  });
+                
+                final displayApps = _isExpanded ? sortedApps : sortedApps.take(16).toList();
+                final hasMore = sortedApps.length > 16;
 
-                return GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 20,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 0.8,
-                  ),
-                  itemCount: sortedApps.length,
-                  itemBuilder: (context, index) {
-                    final app = sortedApps[index];
-                    return GestureDetector(
-                      onTap: () {
-                        ref.read(appLauncherServiceProvider).launchApp(app['packageName']);
-                        Navigator.pop(context);
-                      },
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white10),
+                return Column(
+                  children: [
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          mainAxisSpacing: 20,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 0.65,
+                        ),
+                        itemCount: displayApps.length,
+                        itemBuilder: (context, index) {
+                          final app = displayApps[index];
+                          return GestureDetector(
+                            onTap: () {
+                              // 起動時に利用頻度をカウントアップ
+                              ref.read(appUsageProvider.notifier).recordLaunch(app['packageName']);
+                              ref.read(appLauncherServiceProvider).launchApp(app['packageName']);
+                              Navigator.pop(context);
+                            },
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.05),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white10),
+                                  ),
+                                  child: app['icon'] != null
+                                      ? Image.memory(
+                                          app['icon'],
+                                          width: 45,
+                                          height: 45,
+                                          fit: BoxFit.contain,
+                                        )
+                                      : const Icon(Icons.apps, color: Colors.white70, size: 45),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  app['name'],
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                ),
+                              ],
                             ),
-                            child: const Icon(Icons.apps, color: Colors.white70, size: 30), // アイコン画像は将来的に
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            app['name'],
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white70, fontSize: 10),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                    if (hasMore && !_isExpanded)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: TextButton.icon(
+                          onPressed: () => setState(() => _isExpanded = true),
+                          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
+                          label: Text(
+                            'SHOW ALL (${sortedApps.length - 16} MORE)',
+                            style: const TextStyle(color: Colors.white54, letterSpacing: 2, fontSize: 12),
+                          ),
+                        ),
+                      ),
+                  ],
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),

@@ -4,10 +4,12 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/services/weather_service.dart';
 import '../../../core/services/google_api_service.dart';
 import '../../../core/services/app_launcher_service.dart';
-import '../../../core/services/smart_home_service.dart';
+import '../../../core/services/email_analyzer_service.dart';
+import '../../../core/services/transit_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:googleapis/calendar/v3.dart' as calendar;
 import '../../../core/constants/api_constants.dart';
@@ -19,6 +21,7 @@ enum ServiceStatus { success, error, loading, idle }
 final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
   final ai = ref.watch(aiInsightProvider);
   final weather = ref.watch(weatherProvider);
+  final transit = ref.watch(transitProvider);
   final calendar = ref.watch(calendarEventsProvider);
   final user = ref.watch(googleUserProvider);
 
@@ -29,6 +32,11 @@ final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
       loading: () => ServiceStatus.loading,
     ),
     'Weather': weather.when(
+      data: (_) => ServiceStatus.success,
+      error: (_, __) => ServiceStatus.error,
+      loading: () => ServiceStatus.loading,
+    ),
+    'Transit': transit.when(
       data: (_) => ServiceStatus.success,
       error: (_, __) => ServiceStatus.error,
       loading: () => ServiceStatus.loading,
@@ -49,10 +57,14 @@ final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
 // --- Google Sign In Providers ---
 
 final googleSignInProvider = Provider((ref) => GoogleSignIn(
+  clientId: '340547038394-2ltt55m50v217ktr11305u6hfo6hmamc.apps.googleusercontent.com',
   scopes: ApiConstants.googleScopes,
 ));
 
 final googleUserProvider = StateProvider<GoogleSignInAccount?>((ref) => null);
+
+// デバッグ用エラー文字列
+final googleApiErrorProvider = StateProvider<String>((ref) => '');
 
 // --- API Key Provider ---
 
@@ -98,13 +110,22 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
       final events = await googleService.fetchTodayEvents();
       final tasks = await googleService.fetchPendingTasks();
       googleInfo = '\n--- Googleサービス情報 ---\n$emails\n$events\n$tasks\n';
+      
+      // エラーがあればデバッグ用に記録
+      if (googleInfo.contains('エラー')) {
+        Future.microtask(() => ref.read(googleApiErrorProvider.notifier).state = googleInfo);
+      } else {
+        Future.microtask(() => ref.read(googleApiErrorProvider.notifier).state = '');
+      }
     } catch (e) {
-      googleInfo = '\nGoogle情報の取得に失敗しました。';
+      final errorMsg = '\nGoogle情報の取得に致命的なエラーが発生しました。詳細: $e';
+      googleInfo = errorMsg;
+      Future.microtask(() => ref.read(googleApiErrorProvider.notifier).state = errorMsg);
     }
   }
 
   if (notifications.isEmpty && googleInfo.isEmpty) {
-    return '主人、現在報告すべき新しい情報はございません。\n穏やかな時間をお過ごしください。';
+    return 'ご主人様、現在報告すべき新しい情報はありません。\n穏やかな時間をお過ごしください。';
   }
 
   final notificationData = notifications.map((n) {
@@ -131,12 +152,19 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
     return info;
   }).join('\n---\n');
 
+  final transitAsyncValue = ref.watch(transitProvider);
+  final transitInfo = transitAsyncValue.when(
+    data: (d) => d,
+    error: (e, _) => '運行情報の取得に失敗しました。',
+    loading: () => '取得中...',
+  );
+
   final service = AIInsightService(apiKey);
-  final rawData = '【通知履歴】\n$notificationData\n$googleInfo';
+  final rawData = '【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo';
   try {
     return await service.getSimplifiedInsight(rawData);
   } catch (e) {
-    return '主人、AIとの通信中に不具合が発生いたしました。設定やネットワークをご確認ください。';
+    return 'ご主人様、AIとの通信中に不具合が発生しました。設定やネットワークを確認してください。';
   }
 });
 
@@ -179,4 +207,55 @@ final calendarEventsProvider = FutureProvider<List<calendar.Event>>((ref) async 
 final appLauncherServiceProvider = Provider((ref) => AppLauncherService());
 final installedAppsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   return ref.read(appLauncherServiceProvider).getInstalledApps();
+});
+
+final appUsageProvider = StateNotifierProvider<AppUsageNotifier, Map<String, int>>((ref) {
+  return AppUsageNotifier();
+});
+
+class AppUsageNotifier extends StateNotifier<Map<String, int>> {
+  AppUsageNotifier() : super({}) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('app_usage_stats');
+    if (data != null) {
+      try {
+        final decoded = jsonDecode(data) as Map<String, dynamic>;
+        state = decoded.map((k, v) => MapEntry(k, v as int));
+      } catch (_) {}
+    }
+  }
+
+  Future<void> recordLaunch(String packageName) async {
+    final current = state[packageName] ?? 0;
+    final newState = {...state, packageName: current + 1};
+    state = newState;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_usage_stats', jsonEncode(newState));
+  }
+}
+
+final emailAnalyzerServiceProvider = FutureProvider<EmailAnalyzerService?>((ref) async {
+  final apiKey = ref.watch(aiApiKeyProvider);
+  if (apiKey.isEmpty) return null;
+  
+  final user = ref.watch(googleUserProvider);
+  if (user == null) return null;
+  
+  try {
+    final authHeaders = await user.authHeaders;
+    final client = AuthenticatedClient(http.Client(), authHeaders);
+    final googleService = GoogleApiService(client);
+    return EmailAnalyzerService(googleService, apiKey);
+  } catch (e) {
+    return null;
+  }
+});
+
+final transitProvider = FutureProvider<String>((ref) async {
+  final service = TransitService();
+  return await service.fetchTransitInfo();
 });

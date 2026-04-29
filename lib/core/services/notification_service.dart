@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class NotificationService {
-  static const _channel = MethodChannel('com.example.ai_butler_launcher/notifications');
+  static const _channel = MethodChannel('com.mybutler.launcher_app/notifications');
   final Ref _ref;
 
   NotificationService(this._ref) {
@@ -26,6 +26,15 @@ class NotificationService {
     } on PlatformException catch (e) {
       print("Failed to check permission: '${e.message}'.");
       return false;
+    }
+  }
+
+  Future<String> getAppSignature() async {
+    try {
+      final String result = await _channel.invokeMethod('getAppSignature');
+      return result;
+    } catch (e) {
+      return "Error: $e";
     }
   }
 }

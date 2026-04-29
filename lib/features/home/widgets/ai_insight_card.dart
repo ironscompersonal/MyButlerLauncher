@@ -97,11 +97,11 @@ class AIInsightCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: Text(
+                      child: _buildRichText(
                         trimmed.substring(1).trim(),
-                        style: theme.textTheme.bodyMedium?.copyWith(
+                        theme.textTheme.bodyMedium?.copyWith(
                           color: (isUrgent || isWarning) ? Colors.white : Colors.white70,
-                        ),
+                        ) ?? const TextStyle(),
                       ),
                     ),
                   ],
@@ -110,14 +110,46 @@ class AIInsightCard extends ConsumerWidget {
             }
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: Text(
+              child: _buildRichText(
                 trimmed,
-                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w400, fontSize: 18),
+                theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w400, fontSize: 18) ?? const TextStyle(),
               ),
             );
           }),
         ],
       ),
+    );
+  }
+
+  Widget _buildRichText(String text, TextStyle baseStyle) {
+    final List<TextSpan> spans = [];
+    final RegExp regExp = RegExp(r'\*\*(.*?)\*\*');
+    int lastIndex = 0;
+
+    for (final Match match in regExp.allMatches(text)) {
+      // マッチする前のテキストを追加
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start), style: baseStyle));
+      }
+      // 太字部分を追加
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: baseStyle.copyWith(fontWeight: FontWeight.bold, color: Colors.white),
+      ));
+      lastIndex = match.end;
+    }
+
+    // 残りのテキストを追加
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex), style: baseStyle));
+    }
+
+    if (spans.isEmpty) {
+      return Text(text, style: baseStyle);
+    }
+
+    return RichText(
+      text: TextSpan(children: spans),
     );
   }
 }

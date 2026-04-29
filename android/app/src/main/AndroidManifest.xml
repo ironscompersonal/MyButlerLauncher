@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.ai_butler_launcher">
+    package="com.mybutler.launcher_app">
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="MY AI BUTLER"

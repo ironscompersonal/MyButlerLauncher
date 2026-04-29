@@ -29,6 +29,68 @@ class GoogleApiService {
     }
   }
 
+  // 解析用：指定日時以降の未読メールデータを取得
+  Future<List<Map<String, String>>> fetchUnreadEmailsData(DateTime since) async {
+    final gmail = GmailApi(_client);
+    try {
+      final sinceEpoch = (since.millisecondsSinceEpoch / 1000).floor();
+      final query = 'is:unread after:$sinceEpoch';
+      final list = await gmail.users.messages.list('me', q: query, maxResults: 10);
+      if (list.messages == null || list.messages!.isEmpty) return [];
+
+      List<Map<String, String>> emails = [];
+      for (var msg in list.messages!) {
+        final detail = await gmail.users.messages.get('me', msg.id!);
+        final snippet = detail.snippet ?? '';
+        final subject = detail.payload?.headers?.firstWhere((h) => h.name == 'Subject', orElse: () => MessagePartHeader(name: 'Subject', value: '無題')).value ?? '無題';
+        emails.add({
+          'id': msg.id!,
+          'subject': subject,
+          'snippet': snippet,
+        });
+      }
+      return emails;
+    } catch (e) {
+      print('Gmail fetch data error: $e');
+      return [];
+    }
+  }
+
+  // カレンダーに予定を登録する
+  Future<bool> insertCalendarEvent(String title, DateTime start, DateTime end, String description) async {
+    final calendar = CalendarApi(_client);
+    try {
+      final event = Event(
+        summary: title,
+        description: description,
+        start: EventDateTime(dateTime: start.toUtc()),
+        end: EventDateTime(dateTime: end.toUtc()),
+      );
+      await calendar.events.insert(event, 'primary');
+      return true;
+    } catch (e) {
+      print('Calendar insert error: $e');
+      return false;
+    }
+  }
+
+  // Google Tasksにタスクを登録する
+  Future<bool> insertTask(String title, String notes, DateTime? dueDate) async {
+    final tasksApi = TasksApi(_client);
+    try {
+      final task = Task(
+        title: title,
+        notes: notes,
+        due: dueDate != null ? '${dueDate.toUtc().toIso8601String().split('T')[0]}T00:00:00.000Z' : null,
+      );
+      await tasksApi.tasks.insert(task, '@default');
+      return true;
+    } catch (e) {
+      print('Task insert error: $e');
+      return false;
+    }
+  }
+
   // 本日のカレンダー予定を取得
   Future<String> fetchTodayEvents() async {
     final calendar = CalendarApi(_client);

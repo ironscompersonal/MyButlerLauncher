@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 
 class AppLauncherService {
-  static const _channel = MethodChannel('com.example.ai_butler_launcher/notifications');
+  static const _channel = MethodChannel('com.mybutler.launcher_app/notifications');
 
   Future<List<Map<String, dynamic>>> getInstalledApps() async {
     try {

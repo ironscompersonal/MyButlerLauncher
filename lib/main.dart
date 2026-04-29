@@ -8,9 +8,12 @@ import 'features/home/widgets/calendar_card.dart';
 import 'features/home/widgets/chat_overlay.dart';
 import 'features/home/widgets/app_drawer.dart';
 import 'features/home/widgets/service_status_dashboard.dart';
+import 'features/home/widgets/transit_card.dart';
+import 'features/home/widgets/messenger_notification_card.dart';
 import 'core/services/notification_service.dart';
 import 'features/home/providers/home_providers.dart';
-
+import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   runApp(const ProviderScope(child: MyButlerLauncher()));
 }
@@ -37,11 +40,18 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  Timer? _emailCheckTimer;
+
   @override
   void initState() {
     super.initState();
     // 通知サービスの初期化
     ref.read(notificationServiceProvider);
+    
+    // 定期的なメール確認タイマー（15分ごとに条件チェック）
+    _emailCheckTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+      _checkEmailsAndRegisterEvents();
+    });
     
     // Googleログインの自動試行
     Future.microtask(() async {
@@ -60,6 +70,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _showPermissionDialog();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _emailCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkEmailsAndRegisterEvents() async {
+    final now = DateTime.now();
+    // 6時から23時までの間のみ動作
+    if (now.hour < 6 || now.hour >= 23) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final lastCheckMillis = prefs.getInt('last_email_check_time') ?? 0;
+    final lastCheckTime = DateTime.fromMillisecondsSinceEpoch(lastCheckMillis);
+
+    // 前回のチェックから3時間経過していなければスキップ
+    if (now.difference(lastCheckTime).inHours < 3) return;
+
+    final emailAnalyzer = await ref.read(emailAnalyzerServiceProvider.future);
+    if (emailAnalyzer == null) return;
+
+    // 初回は3時間前から、それ以降は前回のチェック日時から取得
+    final since = lastCheckMillis == 0 ? now.subtract(const Duration(hours: 3)) : lastCheckTime;
+    final emailResult = await emailAnalyzer.analyzeAndRegisterEvents(since);
+    int eventsCount = emailResult['events'] ?? 0;
+    int tasksCount = emailResult['tasks'] ?? 0;
+
+    // メッセンジャー通知の取得と解析
+    final notifications = ref.read(notificationListProvider);
+    final targetPackages = [
+      'jp.naver.line.android',
+      'com.whatsapp',
+      'jp.ecstudio.chatworkandroid',
+      'com.microsoft.teams',
+      'com.slack',
+      'com.instagram.android',
+      'com.facebook.orca',
+      'org.telegram.messenger'
+    ];
+    
+    // 前回チェック以降の対象通知をフィルタリング
+    final targetNotifications = notifications.where((n) {
+      final timestamp = n['timestamp'] as int? ?? 0;
+      final packageName = n['packageName'] as String? ?? '';
+      return timestamp > lastCheckMillis && targetPackages.contains(packageName);
+    }).toList();
+
+    if (targetNotifications.isNotEmpty) {
+      final messengerResult = await emailAnalyzer.analyzeNotificationsAndRegisterEvents(targetNotifications);
+      eventsCount += (messengerResult['events'] ?? 0);
+      tasksCount += (messengerResult['tasks'] ?? 0);
+    }
+
+    // チェック時刻を更新
+    await prefs.setInt('last_email_check_time', now.millisecondsSinceEpoch);
+
+    // 新規登録があった場合はUIで通知
+    if ((eventsCount > 0 || tasksCount > 0) && mounted) {
+      _showButlerReportDialog(eventsCount, tasksCount);
+      // プロバイダを更新
+      ref.invalidate(calendarEventsProvider);
+    }
+  }
+
+  void _showButlerReportDialog(int eventsCount, int tasksCount) {
+    String message = 'ご主人様、メールとメッセージを確認しました。';
+    if (eventsCount > 0 && tasksCount > 0) {
+      message += '\nカレンダーに登録すべき予定が $eventsCount 件、ToDo（タスク）が $tasksCount 件あったので、私の方で登録を済ませておきました。';
+    } else if (eventsCount > 0) {
+      message += '\nカレンダーに登録すべき予定が $eventsCount 件あったので、私の方で登録を済ませておきました。';
+    } else if (tasksCount > 0) {
+      message += '\n新たに追加すべきToDo（タスク）が $tasksCount 件あったので、私の方で登録を済ませておきました。';
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('執事からのご報告', style: TextStyle(color: Colors.white)),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ご苦労', style: TextStyle(color: Colors.blueAccent)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAppDrawer() {
@@ -199,7 +302,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
           const SizedBox(height: 20),
+          const TransitCard(),
+          const SizedBox(height: 20),
           const CalendarCard(),
+          const SizedBox(height: 20),
+          const MessengerNotificationCard(),
           const SizedBox(height: 20),
           const ServiceStatusDashboard(),
           const SizedBox(height: 120), // 余白
@@ -229,13 +336,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   );
                 },
               ),
+              const SizedBox(height: 20),
+              const TransitCard(),
             ],
           ),
         ),
         const SizedBox(width: 40),
-        const Expanded(
+        Expanded(
           flex: 3,
-          child: CalendarCard(),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              children: const [
+                CalendarCard(),
+                SizedBox(height: 20),
+                MessengerNotificationCard(),
+              ],
+            ),
+          ),
         ),
       ],
     );

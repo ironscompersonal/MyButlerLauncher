@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/home_providers.dart';
-
+import '../../../core/services/notification_service.dart';
 class ProfileIconWidget extends ConsumerWidget {
   const ProfileIconWidget({super.key});
 
@@ -66,6 +66,7 @@ class ProfileIconWidget extends ConsumerWidget {
               }
             }),
             _buildActionTile(Icons.help_outline, 'APIキーの入手方法', () => _launchURL('https://aistudio.google.com/app/apikey')),
+            _buildActionTile(Icons.bug_report, 'デバッグログを表示', () => _showDebugLog(context, ref)),
             const Divider(height: 20, color: Colors.white10),
             if (user == null)
               _buildActionTile(Icons.login, 'Googleでログイン', () async {
@@ -75,25 +76,58 @@ class ProfileIconWidget extends ConsumerWidget {
                   final account = await googleSignIn.signIn();
                   if (account != null) {
                     ref.read(googleUserProvider.notifier).state = account;
+                    if (context.mounted) Navigator.pop(context);
+                  } else {
+                    debugPrint('Login was canceled or returned null');
                   }
                 } catch (e) {
                   debugPrint('Login failed error: $e');
+                  final actualSignature = await ref.read(notificationServiceProvider).getAppSignature();
+                  
                   if (context.mounted) {
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: const Text('ログイン失敗'),
-                        content: Text('エラー詳細: $e\n\n※AndroidでGoogleログインを行うには、Google Cloud Consoleでこのアプリのパッケージ名(com.example.ai_butler_launcher)とSHA-1証明書を登録する必要があります。'),
-                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+                        backgroundColor: Colors.grey[900],
+                        title: const Text('ログイン失敗', style: TextStyle(color: Colors.white)),
+                        content: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('エラー詳細: $e', style: const TextStyle(color: Colors.redAccent)),
+                              const SizedBox(height: 16),
+                              const Text('【重要】登録すべき SHA-1 指紋:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              SelectableText(
+                                actualSignature,
+                                style: const TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                '※上記をコピーして、Firebase Console の「プロジェクトの設定」>「com.mybutler.launcher_app」の SHA-1 欄に登録し、保存してください。',
+                                style: TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
+                          ),
+                        ],
                       ),
                     );
                   }
                 }
-                if (context.mounted) Navigator.pop(context);
               })
             else
               _buildActionTile(Icons.logout, 'ログアウト', () async {
-                await googleSignIn.signOut();
+                try {
+                  await googleSignIn.disconnect();
+                } catch (e) {
+                  await googleSignIn.signOut();
+                }
                 ref.read(googleUserProvider.notifier).state = null;
                 Navigator.pop(context);
               }),
@@ -135,5 +169,25 @@ class ProfileIconWidget extends ConsumerWidget {
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     }
+  }
+
+  void _showDebugLog(BuildContext context, WidgetRef ref) {
+    final errorLog = ref.read(googleApiErrorProvider);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('デバッグログ', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            errorLog.isEmpty ? '現在エラーは記録されていません。' : errorLog,
+            style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる')),
+        ],
+      ),
+    );
   }
 }

@@ -5,7 +5,6 @@ import 'glass_card.dart';
 import '../../../core/constants/style_constants.dart';
 import '../providers/home_providers.dart';
 import '../../../core/services/chat_service.dart';
-import '../../../core/services/smart_home_service.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 
@@ -31,24 +30,12 @@ class _ChatOverlayState extends ConsumerState<ChatOverlay> {
   void _initializeChat() async {
     final apiKey = ref.read(aiApiKeyProvider);
     if (apiKey.isNotEmpty) {
-      final user = ref.read(googleUserProvider);
-      SmartHomeService? smartHomeService;
-      
-      if (user != null) {
-        final authHeaders = await user.authHeaders;
-        smartHomeService = SmartHomeService(AuthenticatedClient(http.Client(), authHeaders));
-      }
-
-      _chatService = ChatService(
-        apiKey, 
-        [], 
-        smartHomeService: smartHomeService
-      );
+      _chatService = ChatService(apiKey, []);
       
       setState(() {
         _messages.add({
           'role': 'butler',
-          'text': '主人、何かお困りでしょうか？家電の操作なども承ります。'
+          'text': 'ご主人様、何でしょうか？'
         });
       });
     }
