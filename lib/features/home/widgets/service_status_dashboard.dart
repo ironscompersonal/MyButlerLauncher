@@ -41,6 +41,28 @@ class ServiceStatusDashboard extends ConsumerWidget {
               ),
             );
           }).toList(),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton.icon(
+              onPressed: () {
+                // 各プロバイダを強制的にリフレッシュ
+                ref.invalidate(googleDataSummaryProvider);
+                ref.invalidate(weatherProvider);
+                ref.invalidate(transitProvider);
+                ref.invalidate(aiInsightProvider);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('情報を更新しています...', style: TextStyle(color: Colors.white))),
+                );
+              },
+              icon: const Icon(Icons.sync, size: 16, color: Colors.white54),
+              label: const Text('FORCE RE-SYNC', style: TextStyle(color: Colors.white54, fontSize: 10, letterSpacing: 1)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                backgroundColor: Colors.white.withOpacity(0.05),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
         ],
       ),
     ).asGlass(

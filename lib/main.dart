@@ -14,7 +14,11 @@ import 'core/services/notification_service.dart';
 import 'features/home/providers/home_providers.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-void main() {
+import 'package:intl/date_symbol_data_local.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('ja_JP', null);
   runApp(const ProviderScope(child: MyButlerLauncher()));
 }
 

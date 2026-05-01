@@ -7,6 +7,7 @@ import '../providers/home_providers.dart';
 import '../../../core/services/chat_service.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class ChatOverlay extends ConsumerStatefulWidget {
   const ChatOverlay({super.key});
@@ -20,30 +21,30 @@ class _ChatOverlayState extends ConsumerState<ChatOverlay> {
   final List<Map<String, String>> _messages = [];
   bool _isThinking = false;
   ChatService? _chatService;
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeChat();
-  }
-
-  void _initializeChat() async {
-    final apiKey = ref.read(aiApiKeyProvider);
-    if (apiKey.isNotEmpty) {
-      _chatService = ChatService(apiKey, []);
-      
-      setState(() {
-        _messages.add({
-          'role': 'butler',
-          'text': 'ご主人様、何でしょうか？'
+    _speech = stt.SpeechToText();
+    // 最初のメッセージを表示
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _messages.add({
+            'role': 'butler',
+            'text': 'ご主人様、何でしょうか？'
+          });
         });
-      });
-    }
+      }
+    });
   }
 
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _chatService == null) return;
+    final chatService = ref.read(chatServiceProvider);
+    if (text.isEmpty || chatService == null) return;
 
     setState(() {
       _messages.add({'role': 'user', 'text': text});
@@ -52,7 +53,7 @@ class _ChatOverlayState extends ConsumerState<ChatOverlay> {
     });
 
     try {
-      final response = await _chatService!.sendMessage(text);
+      final response = await chatService.sendMessage(text);
       setState(() {
         _messages.add({'role': 'butler', 'text': response});
         _isThinking = false;
@@ -66,6 +67,35 @@ class _ChatOverlayState extends ConsumerState<ChatOverlay> {
         });
         _isThinking = false;
       });
+    }
+  }
+
+  Future<void> _listen() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          if (val == 'done' || val == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (val) => debugPrint('onError: $val'),
+      );
+      if (available) {
+        setState(() => _isListening = true);
+        _speech.listen(
+          onResult: (val) => setState(() {
+            _controller.text = val.recognizedWords;
+            if (val.finalResult) {
+              _isListening = false;
+              _sendMessage();
+            }
+          }),
+          localeId: 'ja_JP',
+        );
+      }
+    } else {
+      setState(() => _isListening = false);
+      _speech.stop();
     }
   }
 
@@ -138,7 +168,16 @@ class _ChatOverlayState extends ConsumerState<ChatOverlay> {
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  backgroundColor: _isListening ? Colors.redAccent : Colors.white.withOpacity(0.1),
+                  child: IconButton(
+                    icon: Icon(_isListening ? LucideIcons.mic : LucideIcons.micOff, 
+                               color: _isListening ? Colors.white : Colors.white54, size: 20),
+                    onPressed: _listen,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 CircleAvatar(
                   backgroundColor: StyleConstants.themeAccent,
                   child: IconButton(

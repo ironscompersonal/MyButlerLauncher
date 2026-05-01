@@ -58,46 +58,49 @@ class ClockWeatherSection extends ConsumerWidget {
         const SizedBox(height: 32),
         // Weather Section
         weatherAsync.when(
-          data: (weather) => Row(
-            mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
+          data: (weather) => Column(
+            crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
             children: [
-              Icon(_getWeatherIcon(weather.weatherCode), size: 48, color: Colors.white),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
                 children: [
-                  Text(
-                    '${weather.temperature.round()}°',
-                    style: theme.textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.w300),
-                  ),
-                  Text(
-                    weather.location,
-                    style: theme.textTheme.titleMedium?.copyWith(letterSpacing: 2.0, color: Colors.white60, fontSize: 12),
+                  Icon(_getWeatherIcon(weather.weatherCode), size: 48, color: Colors.white),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${weather.temperature.round()}°',
+                        style: theme.textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.w300),
+                      ),
+                      Text(
+                        weather.location,
+                        style: theme.textTheme.titleMedium?.copyWith(letterSpacing: 2.0, color: Colors.white60, fontSize: 12),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              if (!isPortrait) ...[
-                const SizedBox(width: 40),
-                const _ForecastItem(day: 'NOW', icon: LucideIcons.activity, temp: 'REALTIME'),
-              ]
+              const SizedBox(height: 24),
+              // Forecast Row (Actual data)
+              Row(
+                mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
+                children: weather.dailyForecast.map((f) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 32.0),
+                    child: _ForecastItem(
+                      day: DateFormat('E').format(f.date).toUpperCase(),
+                      icon: _getWeatherIcon(f.weatherCode),
+                      temp: '${f.maxTemp.round()}°/${f.minTemp.round()}°',
+                    ),
+                  );
+                }).toList(),
+              ),
             ],
           ),
-          loading: () => const CircularProgressIndicator(),
+          loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, stack) => const Text('天気取得エラー', style: TextStyle(color: Colors.white54)),
         ),
-        if (isPortrait) ...[
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _ForecastItem(day: 'SUN', icon: LucideIcons.cloud, temp: '19°'),
-              const SizedBox(width: 40),
-              _ForecastItem(day: 'MON', icon: LucideIcons.cloudRain, temp: '17°'),
-              const SizedBox(width: 40),
-              _ForecastItem(day: 'TUE', icon: LucideIcons.sun, temp: '22°'),
-            ],
-          ),
-        ],
       ],
     );
   }

@@ -17,14 +17,20 @@ class GoogleApiService {
       if (list.messages == null || list.messages!.isEmpty) return '未読メールはありません。';
 
       StringBuffer sb = StringBuffer('【Gmail未読】\n');
-      for (var msg in list.messages!) {
-        final detail = await gmail.users.messages.get('me', msg.id!);
+      final messageFutures = list.messages!.map((msg) => gmail.users.messages.get('me', msg.id!)).toList();
+      final details = await Future.wait(messageFutures);
+
+      for (var detail in details) {
         final snippet = detail.snippet ?? '';
-        final subject = detail.payload?.headers?.firstWhere((h) => h.name == 'Subject').value ?? '無題';
+        final headers = detail.payload?.headers ?? [];
+        final subject = headers.firstWhere((h) => h.name == 'Subject', orElse: () => MessagePartHeader(name: 'Subject', value: '無題')).value ?? '無題';
         sb.writeln('件名: $subject\n内容: $snippet\n---');
       }
       return sb.toString();
     } catch (e) {
+      if (e.toString().contains('403')) {
+        return 'Gmail取得エラー: 権限がないか、Gmail APIが無効です。 (403 Forbidden)';
+      }
       return 'Gmail取得エラー: $e';
     }
   }
@@ -114,6 +120,9 @@ class GoogleApiService {
       }
       return sb.toString();
     } catch (e) {
+      if (e.toString().contains('403')) {
+        return 'カレンダー取得エラー: 権限がないか、Calendar APIが無効です。 (403 Forbidden)';
+      }
       return 'カレンダー取得エラー: $e';
     }
   }
@@ -136,6 +145,9 @@ class GoogleApiService {
       }
       return sb.toString();
     } catch (e) {
+      if (e.toString().contains('403')) {
+        return 'タスク取得エラー: 権限がないか、Tasks APIが無効です。 (403 Forbidden)';
+      }
       return 'タスク取得エラー: $e';
     }
   }

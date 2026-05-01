@@ -131,6 +131,14 @@ class ProfileIconWidget extends ConsumerWidget {
                 ref.read(googleUserProvider.notifier).state = null;
                 Navigator.pop(context);
               }),
+              _buildActionTile(Icons.note_alt_outlined, 'ご主人様の覚書', () async {
+                Navigator.pop(context); // メニューを閉じる
+                final currentProfile = ref.read(personalProfileProvider);
+                final newProfile = await _showPersonalProfileDialog(context, currentProfile);
+                if (newProfile != null) {
+                  await ref.read(personalProfileProvider.notifier).updateProfile(newProfile);
+                }
+              }),
           ],
         ),
       ),
@@ -173,19 +181,69 @@ class ProfileIconWidget extends ConsumerWidget {
 
   void _showDebugLog(BuildContext context, WidgetRef ref) {
     final errorLog = ref.read(googleApiErrorProvider);
+    final user = ref.read(googleUserProvider);
+    final googleData = ref.read(googleDataSummaryProvider);
+    
+    String statusInfo = '【システム状況】\n';
+    statusInfo += 'ログイン状態: ${user != null ? "ログイン中 (${user.email})" : "未ログイン"}\n';
+    statusInfo += 'データ取得状況: ${googleData.hasValue ? "取得済み" : "未取得"}\n\n';
+    statusInfo += '【エラー・ログ】\n';
+    statusInfo += errorLog.isEmpty ? '現在エラーは記録されていません。' : errorLog;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('デバッグログ', style: TextStyle(color: Colors.white)),
+        title: const Text('システムデバッグログ', style: TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
           child: SelectableText(
-            errorLog.isEmpty ? '現在エラーは記録されていません。' : errorLog,
+            statusInfo,
             style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 12),
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる')),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _showPersonalProfileDialog(BuildContext context, String currentProfile) async {
+    final controller = TextEditingController(text: currentProfile);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('ご主人様の覚書', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '執事に覚えておいてほしい、ご主人様の好みや習慣、個人的な情報を入力してください。',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              maxLines: 8,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: '例: 辛いものが好き。誕生日は6月1日。朝はコーヒー派。',
+                hintStyle: const TextStyle(color: Colors.white24),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('保存'),
+          ),
         ],
       ),
     );

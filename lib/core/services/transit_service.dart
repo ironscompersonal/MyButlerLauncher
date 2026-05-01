@@ -2,49 +2,62 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class TransitService {
-  // Yahoo!路線情報の運行情報RSS（全国）
-  static const String _rssUrl = 'https://transit.yahoo.co.jp/rss/diainfo/all.xml';
+  // Yahoo!路線情報のRSSが終了したため、ウェブページから直接取得する方式に変更
+  // ひとまず関東エリアをターゲットにする
+  static const String _webUrl = 'https://transit.yahoo.co.jp/diainfo/area/4';
 
   Future<String> fetchTransitInfo() async {
     try {
-      final response = await http.get(Uri.parse(_rssUrl));
+      final response = await http.get(Uri.parse(_webUrl));
       if (response.statusCode == 200) {
-        final body = utf8.decode(response.bodyBytes);
-        final items = _extractItems(body);
+        final html = response.body;
+        final items = _extractFromHtml(html);
         
-        final delayedItems = items.where((i) => !i.contains('平常運転')).toList();
-        
-        if (delayedItems.isEmpty) {
-          return '【運行情報：正常】現在、各路線で目立った遅延や運転見合わせの情報はありません。全て平常通り運行されています。';
+        if (items.isEmpty) {
+          return '【運行情報：正常】現在、関東エリアの主な路線で目立った遅延や運転見合わせの情報はありません。';
         }
         
-        return '【運行情報：異常あり】以下の路線で遅延や運転見合わせが発生しています：\n' + delayedItems.join('\n');
+        return '【運行情報：異常あり】以下の路線で情報があります：\n' + items.join('\n');
       }
-      return '運行情報の取得に失敗しました。';
+      return '運行情報の取得に失敗しました。 (Status: ${response.statusCode})';
     } catch (e) {
       return '運行情報の取得中にエラーが発生しました: $e';
     }
   }
 
-  List<String> _extractItems(String xml) {
+  List<String> _extractFromHtml(String html) {
     final List<String> results = [];
-    final RegExp regExp = RegExp(r'<title>(.*?)<\/title>\s*<link>(.*?)<\/link>\s*<description>(.*?)<\/description>', dotAll: true);
-    final matches = regExp.allMatches(xml);
+    
+    // 運行情報がある路線のリストを抽出するための正規表現
+    // HTMLタグを含んで取得し、後で除去する
+    final RegExp regExp = RegExp(r'<td><a href="\/diainfo\/.*?">(.*?)<\/a><\/td>\s*<td>(.*?)<\/td>', dotAll: true);
+    final matches = regExp.allMatches(html);
     
     for (final match in matches) {
-      final title = match.group(1) ?? '';
-      final description = match.group(3) ?? '';
+      // HTMLタグを除去するヘルパー
+      String clean(String input) => input.replaceAll(RegExp(r'<[^>]*>'), '').trim();
       
-      // RSSの先頭のタイトル（Yahoo!路線情報...）は除外
-      if (title.contains('Yahoo!路線情報')) continue;
+      final title = clean(match.group(1) ?? '');
+      final status = clean(match.group(2) ?? '');
       
-      // 「平常運転」以外の情報を優先的に追加
-      if (!description.contains('平常運転')) {
-        results.insert(0, '[$title] $description');
-      } else {
-        results.add('[$title] $description');
+      if (status.isEmpty || status.contains('平常')) continue;
+      
+      results.add('[$title] $status');
+    }
+
+    // 別の構造（リスト形式など）も考慮
+    if (results.isEmpty) {
+      final RegExp regExpAlt = RegExp(r'<dt><a href="\/diainfo\/.*?">(.*?)<\/a><\/dt>\s*<dd.*?>(.*?)<\/dd>', dotAll: true);
+      final matchesAlt = regExpAlt.allMatches(html);
+      for (final match in matchesAlt) {
+        String clean(String input) => input.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+        final title = clean(match.group(1) ?? '');
+        final status = clean(match.group(2) ?? '');
+        if (status.isEmpty || status.contains('平常')) continue;
+        results.add('[$title] $status');
       }
     }
+
     return results;
   }
 }

@@ -12,11 +12,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:googleapis/calendar/v3.dart' as calendar;
+import '../../../core/services/chat_service.dart';
 import '../../../core/constants/api_constants.dart';
+import 'package:intl/intl.dart';
 
 // --- Service Status ---
 
 enum ServiceStatus { success, error, loading, idle }
+
+final notificationPermissionProvider = FutureProvider<bool>((ref) async {
+  return await ref.read(notificationServiceProvider).checkPermission();
+});
 
 final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
   final ai = ref.watch(aiInsightProvider);
@@ -24,6 +30,11 @@ final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
   final transit = ref.watch(transitProvider);
   final calendar = ref.watch(calendarEventsProvider);
   final user = ref.watch(googleUserProvider);
+  final hasNotificationPermission = ref.watch(notificationPermissionProvider).maybeWhen(
+    data: (d) => d,
+    orElse: () => true, // デフォルトはtrueとしておく（エラー時は別途）
+  );
+  final notifications = ref.watch(notificationListProvider);
 
   return {
     'Gemini AI': ai.when(
@@ -48,9 +59,9 @@ final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
           error: (_, __) => ServiceStatus.error,
           loading: () => ServiceStatus.loading,
         ),
-    'Messenger': ref.watch(notificationListProvider).isNotEmpty 
-      ? ServiceStatus.success 
-      : ServiceStatus.idle,
+    'Messenger': !hasNotificationPermission 
+      ? ServiceStatus.error 
+      : (notifications.isNotEmpty ? ServiceStatus.success : ServiceStatus.idle),
   };
 });
 
@@ -63,8 +74,28 @@ final googleSignInProvider = Provider((ref) => GoogleSignIn(
 
 final googleUserProvider = StateProvider<GoogleSignInAccount?>((ref) => null);
 
-// デバッグ用エラー文字列
-final googleApiErrorProvider = StateProvider<String>((ref) => '');
+
+// --- Personal Profile Provider ---
+
+class PersonalProfileNotifier extends StateNotifier<String> {
+  PersonalProfileNotifier() : super('') {
+    _load();
+  }
+  static const _key = 'master_personal_profile';
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getString(_key) ?? '';
+  }
+  Future<void> updateProfile(String profile) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, profile);
+    state = profile;
+  }
+}
+
+final personalProfileProvider = StateNotifierProvider<PersonalProfileNotifier, String>((ref) {
+  return PersonalProfileNotifier();
+});
 
 // --- API Key Provider ---
 
@@ -88,43 +119,62 @@ final aiApiKeyProvider = StateNotifierProvider<ApiKeyNotifier, String>((ref) {
   return ApiKeyNotifier();
 });
 
+// --- Google Data Summary Provider ---
+
+final googleDataSummaryProvider = FutureProvider<String>((ref) async {
+  final user = ref.watch(googleUserProvider);
+  if (user == null) return '';
+
+  final httpClient = http.Client();
+  try {
+    final authHeaders = await user.authHeaders;
+    final client = AuthenticatedClient(httpClient, authHeaders);
+    final googleService = GoogleApiService(client);
+    
+    // 並列で取得して高速化
+    final results = await Future.wait([
+      googleService.fetchRecentEmails(),
+      googleService.fetchTodayEvents(),
+      googleService.fetchPendingTasks(),
+    ]);
+    
+    return '\n--- Googleサービス情報 ---\n${results[0]}\n${results[1]}\n${results[2]}\n';
+  } catch (e) {
+    return '\nGoogle情報の取得に致命的なエラーが発生しました。詳細: $e';
+  } finally {
+    httpClient.close();
+  }
+});
+
+// エラーログ表示用のプロバイダ（副作用を避け、監視ベースに変更）
+final googleApiErrorProvider = Provider<String>((ref) {
+  final summaryAsync = ref.watch(googleDataSummaryProvider);
+  return summaryAsync.maybeWhen(
+    data: (d) => d.contains('エラー') ? d : '',
+    error: (e, _) => '重大なエラー: $e',
+    orElse: () => '',
+  );
+});
+
 // --- AI Insight Provider ---
 
 final aiInsightProvider = FutureProvider<String>((ref) async {
   final apiKey = ref.watch(aiApiKeyProvider);
   final notifications = ref.watch(notificationListProvider);
-  final user = ref.watch(googleUserProvider);
+  final googleInfoAsync = ref.watch(googleDataSummaryProvider);
   
   if (apiKey.isEmpty) {
     return '主人、AIの使用にはAPIキーの設定が必要でございます。\n現在は通知の待機モードとなっております。';
   }
 
-  String googleInfo = '';
-  if (user != null) {
-    try {
-      final authHeaders = await user.authHeaders;
-      final client = AuthenticatedClient(http.Client(), authHeaders);
-      final googleService = GoogleApiService(client);
-      
-      final emails = await googleService.fetchRecentEmails();
-      final events = await googleService.fetchTodayEvents();
-      final tasks = await googleService.fetchPendingTasks();
-      googleInfo = '\n--- Googleサービス情報 ---\n$emails\n$events\n$tasks\n';
-      
-      // エラーがあればデバッグ用に記録
-      if (googleInfo.contains('エラー')) {
-        Future.microtask(() => ref.read(googleApiErrorProvider.notifier).state = googleInfo);
-      } else {
-        Future.microtask(() => ref.read(googleApiErrorProvider.notifier).state = '');
-      }
-    } catch (e) {
-      final errorMsg = '\nGoogle情報の取得に致命的なエラーが発生しました。詳細: $e';
-      googleInfo = errorMsg;
-      Future.microtask(() => ref.read(googleApiErrorProvider.notifier).state = errorMsg);
-    }
-  }
+  final googleInfo = googleInfoAsync.maybeWhen(
+    data: (d) => d,
+    orElse: () => '',
+  );
 
-  if (notifications.isEmpty && googleInfo.isEmpty) {
+  final personalProfile = ref.watch(personalProfileProvider);
+
+  if (notifications.isEmpty && googleInfo.isEmpty && personalProfile.isEmpty) {
     return 'ご主人様、現在報告すべき新しい情報はありません。\n穏やかな時間をお過ごしください。';
   }
 
@@ -160,13 +210,43 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
   );
 
   final service = AIInsightService(apiKey);
-  final rawData = '【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo';
+  final now = DateTime.now();
+  final timeStr = DateFormat('yyyy年MM月dd日(E) HH時mm分', 'ja_JP').format(now);
+  
+  final rawData = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo';
   try {
     return await service.getSimplifiedInsight(rawData);
   } catch (e) {
     return 'ご主人様、AIとの通信中に不具合が発生しました。設定やネットワークを確認してください。';
   }
 });
+
+// --- Chat Service Provider ---
+
+final chatServiceProvider = Provider<ChatService?>((ref) {
+  final apiKey = ref.watch(aiApiKeyProvider);
+  if (apiKey.isEmpty) return null;
+
+  final googleInfo = ref.watch(googleDataSummaryProvider).maybeWhen(
+    data: (d) => d,
+    orElse: () => 'Googleデータ未取得',
+  );
+  final notifications = ref.watch(notificationListProvider);
+  final personalProfile = ref.watch(personalProfileProvider);
+  
+  final now = DateTime.now();
+  final timeStr = DateFormat('yyyy年MM月dd日(E) HH時mm分', 'ja_JP').format(now);
+
+  // 直近のコンテキストを構築
+  String context = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【現在のコンテキスト】\n$googleInfo\n';
+  if (notifications.isNotEmpty) {
+    context += '\n【通知履歴】\n';
+    context += notifications.take(5).map((n) => '送信者: ${n['sender']}, 内容: ${n['text']}').join('\n');
+  }
+
+  return ChatService(apiKey, [], context);
+});
+
 
 // --- Helper Classes ---
 
