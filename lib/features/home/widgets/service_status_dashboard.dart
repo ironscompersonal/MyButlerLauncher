@@ -33,11 +33,20 @@ class ServiceStatusDashboard extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           ...statuses.entries.map((entry) {
+            Widget? action;
+            if (entry.key == 'Health' && entry.value == ServiceStatus.warning) {
+              action = TextButton(
+                onPressed: () => ref.read(healthServiceProvider).openHealthConnectStore(),
+                child: const Text('INSTALL', style: TextStyle(color: Colors.cyanAccent, fontSize: 9)),
+              );
+            }
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: _StatusItem(
                 label: entry.key,
                 status: entry.value,
+                action: action,
               ),
             );
           }).toList(),
@@ -50,6 +59,8 @@ class ServiceStatusDashboard extends ConsumerWidget {
                 ref.invalidate(weatherProvider);
                 ref.invalidate(transitProvider);
                 ref.invalidate(aiInsightProvider);
+                ref.invalidate(healthStatusProvider);
+                ref.invalidate(healthDataProvider);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('情報を更新しています...', style: TextStyle(color: Colors.white))),
                 );
@@ -76,10 +87,12 @@ class ServiceStatusDashboard extends ConsumerWidget {
 class _StatusItem extends StatelessWidget {
   final String label;
   final ServiceStatus status;
+  final Widget? action;
 
   const _StatusItem({
     required this.label,
     required this.status,
+    this.action,
   });
 
   @override
@@ -106,6 +119,10 @@ class _StatusItem extends StatelessWidget {
         statusColor = Colors.white24;
         statusText = 'STANDBY';
         break;
+      case ServiceStatus.warning:
+        statusColor = Colors.orange;
+        statusText = 'NOT INSTALLED';
+        break;
     }
 
     return Row(
@@ -131,6 +148,10 @@ class _StatusItem extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        if (action != null) ...[
+          const SizedBox(width: 8),
+          action!,
+        ],
       ],
     );
   }

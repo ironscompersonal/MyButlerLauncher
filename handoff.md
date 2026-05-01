@@ -10,35 +10,32 @@
 - **Native**: Kotlin for notification listening (`com.mybutler.launcher_app`).
 - **Additional Packages**: `speech_to_text` (voice input), `intl` (local date/time).
 
-## 3. Latest Improvements (2026-05-01)
-- **Personal Profile (ご主人様の覚書)**: 
-    - Added a persistence-based profile system where the user can store habits, preferences, and personal info.
-    - This profile is injected into all AI prompts (Chat & Insights) for tailored service.
-- **Voice Input (Mic)**:
-    - Integrated `speech_to_text` in the Chat Overlay.
-    - Users can now talk to the butler directly via the mic button.
-- **Enhanced Weather**:
-    - Expanded from current weather to a 3-day view (Current + 2-day forecast).
-    - Fetches max/min temperatures and weather codes via Open-Meteo.
-- **Transit Scraping Fix**:
-    - Replaced the discontinued Yahoo! RSS with a direct Web Scraper for real-time transit info.
-    - Implemented HTML tag stripping to ensure clean text display.
-- **Live Context (Time-Awareness)**:
-    - AI is now fed the exact current date and time.
-    - Instructed to provide time-appropriate greetings (Good morning/evening) and proactive reporting.
-- **System Synchronization**:
-    - Added a "FORCE RE-SYNC" button to the status dashboard to manually refresh all API data.
+## 3. Latest Improvements (2026-05-02)
+- **Application Loading Optimization**:
+    - Decoupled application list fetching from icon processing.
+    - Implemented on-demand, asynchronous icon loading with resizing (100x100) in Kotlin.
+    - Added caching in Flutter (Riverpod), resulting in near-instant App Drawer loading.
+- **Health Connect Integration**:
+    - Integrated Android Health Connect via the `health` package.
+    - Captures steps, sleep, and heart rate data from the last 24 hours.
+    - Includes a smart installation assistant that detects if Health Connect is missing and provides a direct Play Store link.
+- **AI Insight Refinement**:
+    - Tuned the system prompt to be more concise and "butler-like," focusing on key information without redundant greetings.
+    - Integrated health data into AI insights for proactive health advice.
+- **Android System Update**:
+    - Upgraded `compileSdkVersion` and `targetSdkVersion` to 35.
+    - Upgraded `minSdkVersion` to 26 (Android 8.0) to support Health Connect.
+    - Switched `MainActivity` to `FlutterFragmentActivity` for enhanced permission handling.
 
 ## 4. Pending Tasks
-- [x] **Personalization**: "Master's Memory" (覚書) implemented.
-- [x] **Voice Support**: Mic input added to chat.
-- [x] **Weather Forecast**: Next 2 days added to clock section.
-- [x] **Transit Fix**: Switched from RSS to Scraper.
-- [ ] **Notification Refinement**: Continued tuning of the AI's "Live Greeting" frequency to avoid redundancy.
+- [x] **Application Loading Speed**: Optimized with on-demand icon loading.
+- [x] **Health Integration**: Health Connect linked with AI insights.
+- [x] **Concise AI**: Prompts adjusted for brevity.
 - [ ] **Custom Themes**: Allow user to choose different glassmorphism accent colors.
+- [ ] **Advanced Scheduling**: Proactive reminders for calendar events based on transit times.
 
 ## 5. Development Notes
 - **Locales**: `ja_JP` locale is initialized in `main.dart` for date formatting.
-- **Scraping**: `TransitService` parses `transit.yahoo.co.jp` HTML. Brittle if UI changes, but most comprehensive for JP transit.
-- **Mic Permissions**: `RECORD_AUDIO` permission is required and added to `AndroidManifest.xml`.
-- **Model**: `gemini-2.5-flash` is used for high-speed, cost-effective processing.
+- **Health Connect**: Requires the "Health Connect" app to be installed on the device. Supported on Android 8.0+.
+- **Icon Resizing**: Native Kotlin implementation resizes app icons to 100x100 for memory and performance efficiency.
+- **SDK Version**: Project is now targeting Android API 35.

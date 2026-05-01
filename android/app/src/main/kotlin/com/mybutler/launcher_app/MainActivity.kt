@@ -9,11 +9,11 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity: FlutterActivity() {
+class MainActivity: FlutterFragmentActivity() {
     private val CHANNEL = "com.mybutler.launcher_app/notifications"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -30,6 +30,15 @@ class MainActivity: FlutterActivity() {
                 "getInstalledApps" -> {
                     val apps = getInstalledApps()
                     result.success(apps)
+                }
+                "getAppIcon" -> {
+                    val packageName = call.argument<String>("packageName")
+                    if (packageName != null) {
+                        val icon = getAppIcon(packageName)
+                        result.success(icon)
+                    } else {
+                        result.error("INVALID_PACKAGE", "Package name is null", null)
+                    }
                 }
                 "launchApp" -> {
                     val packageName = call.argument<String>("packageName")
@@ -61,10 +70,14 @@ class MainActivity: FlutterActivity() {
             }
             
             val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                packageInfo.signingInfo.signingCertificateHistory
+                packageInfo.signingInfo?.signingCertificateHistory
             } else {
                 @Suppress("DEPRECATION")
                 packageInfo.signatures
+            }
+            
+            if (signatures == null || signatures.isEmpty()) {
+                return "Error: No signatures found"
             }
 
             val md = java.security.MessageDigest.getInstance("SHA1")
@@ -86,22 +99,26 @@ class MainActivity: FlutterActivity() {
             val appInfo = mutableMapOf<String, Any>()
             appInfo["name"] = resolveInfo.loadLabel(pm).toString()
             appInfo["packageName"] = resolveInfo.activityInfo.packageName
-            
-            try {
-                val iconDrawable = resolveInfo.loadIcon(pm)
-                val bitmap = getBitmapFromDrawable(iconDrawable)
-                val stream = ByteArrayOutputStream()
-                // サイズを小さくするために圧縮率を調整し、必要に応じてリサイズすることも可能ですが、
-                // 今回はそのままPNG変換します。
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-                appInfo["icon"] = stream.toByteArray()
-            } catch (e: Exception) {
-                // アイコン取得に失敗した場合は無視（Flutter側でフォールバック表示）
-            }
-
+            // アイコンはここでは取得せず、個別にリクエストさせることで高速化する
             apps.add(appInfo)
         }
         return apps
+    }
+
+    private fun getAppIcon(packageName: String): ByteArray? {
+        return try {
+            val pm = packageManager
+            val icon = pm.getApplicationIcon(packageName)
+            val bitmap = getBitmapFromDrawable(icon)
+            
+            // 表示用にリサイズ (100x100) して転送量とメモリを節約
+            val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 100, 100, true)
+            val stream = ByteArrayOutputStream()
+            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            stream.toByteArray()
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun getBitmapFromDrawable(drawable: Drawable): Bitmap {

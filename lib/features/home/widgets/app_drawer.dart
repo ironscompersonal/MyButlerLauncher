@@ -64,11 +64,13 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
                         itemCount: displayApps.length,
                         itemBuilder: (context, index) {
                           final app = displayApps[index];
+                          final packageName = app['packageName'] as String;
+                          
                           return GestureDetector(
                             onTap: () {
                               // 起動時に利用頻度をカウントアップ
-                              ref.read(appUsageProvider.notifier).recordLaunch(app['packageName']);
-                              ref.read(appLauncherServiceProvider).launchApp(app['packageName']);
+                              ref.read(appUsageProvider.notifier).recordLaunch(packageName);
+                              ref.read(appLauncherServiceProvider).launchApp(packageName);
                               Navigator.pop(context);
                             },
                             child: Column(
@@ -80,18 +82,37 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
                                     shape: BoxShape.circle,
                                     border: Border.all(color: Colors.white10),
                                   ),
-                                  child: app['icon'] != null
-                                      ? Image.memory(
-                                          app['icon'],
+                                  child: Consumer(
+                                    builder: (context, ref, child) {
+                                      final iconAsync = ref.watch(appIconProvider(packageName));
+                                      return iconAsync.when(
+                                        data: (iconData) => iconData != null
+                                            ? Image.memory(
+                                                iconData,
+                                                width: 45,
+                                                height: 45,
+                                                fit: BoxFit.contain,
+                                              )
+                                            : const Icon(Icons.apps, color: Colors.white70, size: 45),
+                                        loading: () => const SizedBox(
                                           width: 45,
                                           height: 45,
-                                          fit: BoxFit.contain,
-                                        )
-                                      : const Icon(Icons.apps, color: Colors.white70, size: 45),
+                                          child: Center(
+                                            child: SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24),
+                                            ),
+                                          ),
+                                        ),
+                                        error: (_, __) => const Icon(Icons.error_outline, color: Colors.white30, size: 45),
+                                      );
+                                    },
+                                  ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  app['name'],
+                                  app['name'] ?? '',
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

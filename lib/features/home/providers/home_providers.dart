@@ -15,13 +15,24 @@ import 'package:googleapis/calendar/v3.dart' as calendar;
 import '../../../core/services/chat_service.dart';
 import '../../../core/constants/api_constants.dart';
 import 'package:intl/intl.dart';
+import 'dart:typed_data';
+import '../../../core/services/health_service.dart';
 
 // --- Service Status ---
 
-enum ServiceStatus { success, error, loading, idle }
+enum ServiceStatus { success, error, loading, idle, warning }
 
 final notificationPermissionProvider = FutureProvider<bool>((ref) async {
   return await ref.read(notificationServiceProvider).checkPermission();
+});
+
+final healthServiceProvider = Provider((ref) => HealthService());
+
+final healthStatusProvider = FutureProvider<ServiceStatus>((ref) async {
+  final service = ref.read(healthServiceProvider);
+  final installed = await service.isHealthConnectInstalled();
+  if (!installed) return ServiceStatus.warning; // 未インストール
+  return ServiceStatus.success;
 });
 
 final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
@@ -30,6 +41,11 @@ final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
   final transit = ref.watch(transitProvider);
   final calendar = ref.watch(calendarEventsProvider);
   final user = ref.watch(googleUserProvider);
+  final health = ref.watch(healthStatusProvider).maybeWhen(
+    data: (s) => s,
+    orElse: () => ServiceStatus.loading,
+  );
+  
   final hasNotificationPermission = ref.watch(notificationPermissionProvider).maybeWhen(
     data: (d) => d,
     orElse: () => true, // デフォルトはtrueとしておく（エラー時は別途）
@@ -59,6 +75,7 @@ final serviceStatusProvider = Provider<Map<String, ServiceStatus>>((ref) {
           error: (_, __) => ServiceStatus.error,
           loading: () => ServiceStatus.loading,
         ),
+    'Health': health,
     'Messenger': !hasNotificationPermission 
       ? ServiceStatus.error 
       : (notifications.isNotEmpty ? ServiceStatus.success : ServiceStatus.idle),
@@ -156,12 +173,22 @@ final googleApiErrorProvider = Provider<String>((ref) {
   );
 });
 
+// --- Health Data Provider ---
+
+final healthDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final service = ref.read(healthServiceProvider);
+  final installed = await service.isHealthConnectInstalled();
+  if (!installed) return {};
+  return await service.fetchHealthSummary();
+});
+
 // --- AI Insight Provider ---
 
 final aiInsightProvider = FutureProvider<String>((ref) async {
   final apiKey = ref.watch(aiApiKeyProvider);
   final notifications = ref.watch(notificationListProvider);
   final googleInfoAsync = ref.watch(googleDataSummaryProvider);
+  final healthDataAsync = ref.watch(healthDataProvider);
   
   if (apiKey.isEmpty) {
     return '主人、AIの使用にはAPIキーの設定が必要でございます。\n現在は通知の待機モードとなっております。';
@@ -172,9 +199,14 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
     orElse: () => '',
   );
 
+  final healthData = healthDataAsync.maybeWhen(
+    data: (d) => d.isEmpty ? '' : '\n【健康データ(直近24h)】\n歩数: ${d['steps']}歩, 睡眠: ${d['sleep_minutes']}分, 平均心拍: ${d['avg_heart_rate']}bpm',
+    orElse: () => '',
+  );
+
   final personalProfile = ref.watch(personalProfileProvider);
 
-  if (notifications.isEmpty && googleInfo.isEmpty && personalProfile.isEmpty) {
+  if (notifications.isEmpty && googleInfo.isEmpty && personalProfile.isEmpty && healthData.isEmpty) {
     return 'ご主人様、現在報告すべき新しい情報はありません。\n穏やかな時間をお過ごしください。';
   }
 
@@ -213,7 +245,7 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
   final now = DateTime.now();
   final timeStr = DateFormat('yyyy年MM月dd日(E) HH時mm分', 'ja_JP').format(now);
   
-  final rawData = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo';
+  final rawData = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo\n$healthData';
   try {
     return await service.getSimplifiedInsight(rawData);
   } catch (e) {
@@ -287,6 +319,10 @@ final calendarEventsProvider = FutureProvider<List<calendar.Event>>((ref) async 
 final appLauncherServiceProvider = Provider((ref) => AppLauncherService());
 final installedAppsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   return ref.read(appLauncherServiceProvider).getInstalledApps();
+});
+
+final appIconProvider = FutureProvider.family<Uint8List?, String>((ref, packageName) async {
+  return ref.read(appLauncherServiceProvider).getAppIcon(packageName);
 });
 
 final appUsageProvider = StateNotifierProvider<AppUsageNotifier, Map<String, int>>((ref) {
