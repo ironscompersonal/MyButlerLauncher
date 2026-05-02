@@ -10,6 +10,7 @@ import 'features/home/widgets/app_drawer.dart';
 import 'features/home/widgets/service_status_dashboard.dart';
 import 'features/home/widgets/transit_card.dart';
 import 'features/home/widgets/messenger_notification_card.dart';
+import 'features/home/widgets/health_card.dart';
 import 'core/services/notification_service.dart';
 import 'features/home/providers/home_providers.dart';
 import 'dart:async';
@@ -248,7 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           // App Drawer Toggle (Bottom Center)
           Positioned(
-            bottom: 30,
+            bottom: 60 + MediaQuery.of(context).padding.bottom,
             left: 0,
             right: 0,
             child: Center(
@@ -306,6 +307,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
           const SizedBox(height: 20),
+          const HealthCard(),
+          const SizedBox(height: 20),
           const TransitCard(),
           const SizedBox(height: 20),
           const CalendarCard(),
@@ -313,53 +316,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const MessengerNotificationCard(),
           const SizedBox(height: 20),
           const ServiceStatusDashboard(),
-          const SizedBox(height: 120), // 余白
+          const SizedBox(height: 200), // 余白を増やしてボタンと重ならないようにする
         ],
       ),
     );
   }
 
   Widget _buildLandscapeLayout() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 4,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-              const ClockWeatherSection(),
-              const Spacer(),
-              AIInsightCard(
-                onAction: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (context) => const ChatOverlay(),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-              const TransitCard(),
-            ],
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                const ClockWeatherSection(),
+                const SizedBox(height: 40),
+                AIInsightCard(
+                  onAction: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => const ChatOverlay(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                const HealthCard(),
+                const SizedBox(height: 20),
+                const TransitCard(),
+                const SizedBox(height: 100), // 横画面も余白追加
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 40),
-        Expanded(
-          flex: 3,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
+          const SizedBox(width: 32),
+          Expanded(
+            flex: 2,
             child: Column(
               children: const [
                 CalendarCard(),
                 SizedBox(height: 20),
+                HealthCard(),
+                SizedBox(height: 20),
                 MessengerNotificationCard(),
+                SizedBox(height: 100), // 横画面も余白追加
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

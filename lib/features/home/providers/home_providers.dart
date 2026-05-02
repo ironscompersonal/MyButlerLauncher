@@ -18,6 +18,12 @@ import 'package:intl/intl.dart';
 import 'dart:typed_data';
 import '../../../core/services/health_service.dart';
 
+// --- Time Provider ---
+
+final currentTimeProvider = StreamProvider<DateTime>((ref) {
+  return Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now());
+});
+
 // --- Service Status ---
 
 enum ServiceStatus { success, error, loading, idle, warning }
@@ -180,6 +186,13 @@ final healthDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final installed = await service.isHealthConnectInstalled();
   if (!installed) return {};
   return await service.fetchHealthSummary();
+});
+
+final weeklyHealthDataProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.read(healthServiceProvider);
+  final installed = await service.isHealthConnectInstalled();
+  if (!installed) return [];
+  return await service.fetchWeeklyHealthData();
 });
 
 // --- AI Insight Provider ---

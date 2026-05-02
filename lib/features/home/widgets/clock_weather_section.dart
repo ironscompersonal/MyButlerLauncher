@@ -22,7 +22,10 @@ class ClockWeatherSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final now = DateTime.now();
+    final now = ref.watch(currentTimeProvider).maybeWhen(
+          data: (d) => d,
+          orElse: () => DateTime.now(),
+        );
     final size = MediaQuery.of(context).size;
     final isPortrait = size.width < 600;
     final weatherAsync = ref.watch(weatherProvider);
