@@ -97,26 +97,28 @@ class GoogleApiService {
     }
   }
 
-  // 本日のカレンダー予定を取得
-  Future<String> fetchTodayEvents() async {
+  // 1ヶ月先までのカレンダー予定を取得
+  Future<String> fetchUpcomingEvents() async {
     final calendar = CalendarApi(_client);
     try {
       final now = DateTime.now();
-      final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      // 30日先までを取得範囲にする
+      final endOfMonth = now.add(const Duration(days: 30));
+      
       final events = await calendar.events.list(
         'primary',
         timeMin: now.toUtc(),
-        timeMax: endOfDay.toUtc(),
+        timeMax: endOfMonth.toUtc(),
         singleEvents: true,
         orderBy: 'startTime',
       );
 
-      if (events.items == null || events.items!.isEmpty) return '本日の予定はありません。';
+      if (events.items == null || events.items!.isEmpty) return '今後1ヶ月間の予定はありません。';
 
-      StringBuffer sb = StringBuffer('【カレンダー予定】\n');
+      StringBuffer sb = StringBuffer('【カレンダー予定（今後1ヶ月）】\n');
       for (var event in events.items!) {
-        final start = event.start?.dateTime ?? event.start?.date;
-        sb.writeln('・${event.summary} ($start)');
+        final startStr = event.start?.dateTime?.toLocal().toString() ?? event.start?.date?.toString() ?? '終日';
+        sb.writeln('・${event.summary} ($startStr)');
       }
       return sb.toString();
     } catch (e) {

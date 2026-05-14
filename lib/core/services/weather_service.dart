@@ -17,18 +17,21 @@ class ForecastData {
 
   String get conditionText => WeatherUtils.getConditionText(weatherCode);
 }
-
 class WeatherData {
   final double temperature;
   final int weatherCode;
   final String location;
   final List<ForecastData> dailyForecast;
+  final double? lat;
+  final double? lon;
 
   WeatherData({
     required this.temperature,
     required this.weatherCode,
     required this.location,
     required this.dailyForecast,
+    this.lat,
+    this.lon,
   });
 
   String get conditionText => WeatherUtils.getConditionText(weatherCode);
@@ -88,11 +91,19 @@ class WeatherService {
           }
         }
 
+        // 簡易的な地名判定
+        String locationName = 'NAKAHARA KU';
+        if (lat == 26.2124 && lon == 127.6809) {
+          locationName = 'NAHA CITY';
+        }
+
         return WeatherData(
           temperature: (current['temperature_2m'] as num).toDouble(),
           weatherCode: (current['weather_code'] as num).toInt(),
-          location: 'NAKAHARA KU',
+          location: locationName,
           dailyForecast: forecast,
+          lat: lat,
+          lon: lon,
         );
       } else {
         throw Exception('Failed to load weather: ${response.statusCode}');

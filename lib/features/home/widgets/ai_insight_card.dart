@@ -16,37 +16,38 @@ class AIInsightCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final aiInsight = ref.watch(aiInsightProvider);
+    final cardState = ref.watch(butlerCardProvider);
     final theme = Theme.of(context);
-    
-    return aiInsight.when(
-      data: (text) => _buildCard(context, text, theme),
-      loading: () => const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: CircularProgressIndicator(),
-        ),
-      ),
-      error: (err, stack) => _buildCard(context, '主人、情報の整理中にエラーが発生いたしました。\n詳細: $err', theme),
-    );
+
+    // 初期化をスケジュール
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (cardState.content.isEmpty) {
+        ref.read(butlerCardProvider.notifier).initialize();
+      }
+    });
+
+    return _buildCard(context, cardState, theme, ref);
   }
 
-  Widget _buildCard(BuildContext context, String text, ThemeData theme) {
+  Widget _buildCard(BuildContext context, ButlerCardState state, ThemeData theme, WidgetRef ref) {
+    final text = state.mode == ButlerCardMode.listening 
+        ? (state.lastRecognition ?? 'お聞きしております...')
+        : state.content;
+    
     final lines = text.split('\n');
     
     Color accentColor = StyleConstants.statusLineNormal;
-    bool isUrgent = text.contains('緊急') || text.contains('重要');
-    bool isWarning = text.contains('警告') || text.contains('注意');
-    
-    if (isUrgent) {
-      accentColor = StyleConstants.statusLineAlert;
-    } else if (isWarning) {
-      accentColor = Colors.orangeAccent;
+    if (state.mode == ButlerCardMode.listening) {
+      accentColor = Colors.lightBlueAccent;
+    } else if (state.mode == ButlerCardMode.thinking) {
+      accentColor = Colors.purpleAccent;
+    } else if (state.mode == ButlerCardMode.chat) {
+      accentColor = StyleConstants.statusLineNormal;
     }
 
     return GlassCard(
       accentColor: accentColor,
-      isVibrant: isUrgent || isWarning,
+      isVibrant: state.mode == ButlerCardMode.listening || state.mode == ButlerCardMode.thinking,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -58,7 +59,11 @@ class AIInsightCard extends ConsumerWidget {
                   color: accentColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(LucideIcons.sparkles, size: 20, color: accentColor),
+                child: Icon(
+                  state.mode == ButlerCardMode.listening ? LucideIcons.mic : LucideIcons.sparkles, 
+                  size: 20, 
+                  color: accentColor
+                ),
               ),
               const SizedBox(width: 12),
               Text(
@@ -69,53 +74,79 @@ class AIInsightCard extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
-              if (onAction != null)
+              if (state.mode == ButlerCardMode.chat)
                 IconButton(
-                  onPressed: onAction,
-                  tooltip: '執事に詳しく聞く',
-                  icon: const Icon(LucideIcons.messageSquare, size: 22, color: Colors.white54),
+                  onPressed: () => ref.read(butlerCardProvider.notifier).resetToInsight(),
+                  tooltip: '報告に戻る',
+                  icon: const Icon(LucideIcons.rotateCcw, size: 20, color: Colors.white54),
                 ),
+              IconButton(
+                onPressed: () {
+                  if (state.mode == ButlerCardMode.listening) {
+                    ref.read(butlerCardProvider.notifier).stopListening();
+                  } else {
+                    ref.read(butlerCardProvider.notifier).startListening();
+                  }
+                },
+                tooltip: '執事に話しかける',
+                icon: Icon(
+                  state.mode == ButlerCardMode.listening ? LucideIcons.micOff : LucideIcons.mic, 
+                  size: 22, 
+                  color: state.mode == ButlerCardMode.listening ? Colors.redAccent : Colors.white70
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
-          ...lines.map((line) {
-            final trimmed = line.trim();
-            if (trimmed.isEmpty) return const SizedBox(height: 8);
-            if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
+          if (state.mode == ButlerCardMode.thinking)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            ...lines.map((line) {
+              final trimmed = line.trim();
+              if (trimmed.isEmpty) return const SizedBox(height: 8);
+              
+              // 特殊な行（箇条書き）の処理
+              if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12, left: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildRichText(
+                          trimmed.substring(1).trim(),
+                          theme.textTheme.bodyMedium?.copyWith(color: Colors.white70) ?? const TextStyle(),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12, left: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildRichText(
-                        trimmed.substring(1).trim(),
-                        theme.textTheme.bodyMedium?.copyWith(
-                          color: (isUrgent || isWarning) ? Colors.white : Colors.white70,
-                        ) ?? const TextStyle(),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildRichText(
+                  trimmed,
+                  theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: state.mode == ButlerCardMode.chat ? FontWeight.w500 : FontWeight.w400,
+                    fontSize: state.mode == ButlerCardMode.chat ? 19 : 18,
+                    color: state.mode == ButlerCardMode.listening ? Colors.white : Colors.white.withOpacity(0.9),
+                  ) ?? const TextStyle(),
                 ),
               );
-            }
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _buildRichText(
-                trimmed,
-                theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w400, fontSize: 18) ?? const TextStyle(),
-              ),
-            );
-          }),
+            }),
         ],
       ),
     );

@@ -1,41 +1,38 @@
-# Project Handover: MY AI BUTLER Launcher
+# Project Handover: MY AI BUTLER Launcher (v1.1.0)
 
 ## 1. Project Overview
-- **Goal**: A premium Android Home Launcher powered by Gemini 2.5.
-- **Status**: Stable with personalized profile, voice input, and comprehensive status monitoring (Weather/Transit/Notifications).
+- **Goal**: A premium Android Home Launcher powered by Gemini 2.5 Flash.
+- **Current Status**: **Fully Operational on Real Devices (Android 16/API 36).** Integrated with real-time health, asset, and schedule data. Voice-interactive via the main insight card.
 
 ## 2. Technical Stack
-- **Flutter/Dart**: Framework (google_generative_ai: ^0.4.7).
-- **Gemini**: **Gemini 2.5 Flash** (v1beta endpoint).
-- **Native**: Kotlin for notification listening (`com.mybutler.launcher_app`).
-- **Additional Packages**: `speech_to_text` (voice input), `intl` (local date/time).
+- **Framework**: Flutter/Dart (google_generative_ai: ^0.4.7).
+- **AI**: Gemini 2.5 Flash (v1beta) with Context Awareness.
+- **MCP**: Real-time HTTP/JSON-RPC client for Rakuten Securities.
+- **Native**: Kotlin for notification listening and app icon management.
+- **Health**: Health Connect (Steps, Sleep, Heart Rate).
 
-## 3. Latest Improvements (2026-05-02)
-- **Application Loading Optimization**:
-    - Decoupled application list fetching from icon processing.
-    - Implemented on-demand, asynchronous icon loading with resizing (100x100) in Kotlin.
-    - Added caching in Flutter (Riverpod), resulting in near-instant App Drawer loading.
-- **Health Connect Integration**:
-    - Integrated Android Health Connect via the `health` package.
-    - Captures steps, sleep, and heart rate data from the last 24 hours.
-    - Includes a smart installation assistant that detects if Health Connect is missing and provides a direct Play Store link.
-- **AI Insight Refinement**:
-    - Tuned the system prompt to be more concise and "butler-like," focusing on key information without redundant greetings.
-    - Integrated health data into AI insights for proactive health advice.
-- **Android System Update**:
-    - Upgraded `compileSdkVersion` and `targetSdkVersion` to 35.
-    - Upgraded `minSdkVersion` to 26 (Android 8.0) to support Health Connect.
-    - Switched `MainActivity` to `FlutterFragmentActivity` for enhanced permission handling.
+## 3. Latest Improvements (2026-05-14)
+- **Real-Device Porting & Stabilization**:
+    - Fixed Windows-specific crashes and established absolute path for Flutter commands.
+    - Verified full connectivity on SC-51D (Android 16).
+- **Full Data Integration (The "Real Data" Update)**:
+    - **Google Services**: Expanded scope to fetch 1 month of calendar events.
+    - **Health Connect**: Implemented robust per-type fetching for Steps, Sleep (ASLEEP), and Heart Rate.
+    - **Rakuten Securities (MCP)**: Switched from mocks to a real HTTP/JSON-RPC client. Created a reference Python MCP server script.
+- **Interactive Voice Insight Card**:
+    - Transformed the AI Insight Card into a two-way chat interface.
+    - Integrated `speech_to_text` for Japanese voice input.
+    - Implemented a state machine (Insight -> Listening -> Thinking -> Chat) for the card UI.
+- **AI Sincerity & Privacy**:
+    - Updated system prompts for privacy (masking numbers on request) and sincerity (explaining the "querying" process).
 
-## 4. Pending Tasks
-- [x] **Application Loading Speed**: Optimized with on-demand icon loading.
-- [x] **Health Integration**: Health Connect linked with AI insights.
-- [x] **Concise AI**: Prompts adjusted for brevity.
-- [ ] **Custom Themes**: Allow user to choose different glassmorphism accent colors.
-- [ ] **Advanced Scheduling**: Proactive reminders for calendar events based on transit times.
+## 4. Pending Tasks & Roadmap
+- [ ] **Advanced Scheduling (Transit Integration)**: Proactive reminders combining calendar events, real-time transit status, and asset balance (Taxi vs Walk logic).
+- [ ] **Custom Themes**: Implementation of user-selectable glassmorphism accent colors.
+- [ ] **Physical Space (Location MCP)**: Integrating real location data via MCP instead of static coordinates.
+- [ ] **STT Locale Fine-tuning**: Final verification of Japanese recognition stability on API 36.
 
 ## 5. Development Notes
-- **Locales**: `ja_JP` locale is initialized in `main.dart` for date formatting.
-- **Health Connect**: Requires the "Health Connect" app to be installed on the device. Supported on Android 8.0+.
-- **Icon Resizing**: Native Kotlin implementation resizes app icons to 100x100 for memory and performance efficiency.
-- **SDK Version**: Project is now targeting Android API 35.
+- **MCP Base URL**: Must be configured in `lib/core/services/mcp_service.dart` (`_mcpBaseUrl`).
+- **Health Connect**: Requires other apps (Google Fit, etc.) to write data into Health Connect for the Butler to read.
+- **Voice Input**: Currently uses the system's default locale, fallback to `ja_JP`.

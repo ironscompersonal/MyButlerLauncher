@@ -1,0 +1,65 @@
+{
+  "mcp_specs": {
+    "rakuten_securities": {
+      "description": "楽天証券の口座情報を取得・管理するツール群",
+      "tools": [
+        {
+          "name": "get_account_summary",
+          "description": "総資産、買い付け余力、評価損益のサマリーを取得する",
+          "input_schema": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        {
+          "name": "get_nisa_status",
+          "description": "NISA（つみたて・成長投資枠）の利用状況と残枠を取得する",
+          "input_schema": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        {
+          "name": "get_investment_trust_list",
+          "description": "保有している投資信託の一覧と各銘柄の損益状況を取得する",
+          "input_schema": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      ]
+    },
+    "ota_integration": {
+      "description": "旅行予約（OTA）情報の確認と管理ツール群",
+      "tools": [
+        {
+          "name": "get_upcoming_reservations",
+          "description": "今後の宿泊・フライト予約情報を取得する",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "days_limit": {
+                "type": "integer",
+                "description": "取得する日数制限（デフォルト30日）"
+              }
+            }
+          }
+        },
+        {
+          "name": "check_travel_requirements",
+          "description": "目的地の最新の入国条件や持ち物リストを提案する",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "destination": {
+                "type": "string",
+                "description": "目的地"
+              }
+            },
+            "required": ["destination"]
+          }
+        }
+      ]
+    }
+  }
+}

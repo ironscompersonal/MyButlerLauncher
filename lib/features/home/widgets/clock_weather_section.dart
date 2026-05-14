@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../providers/home_providers.dart';
 import '../../../core/services/weather_service.dart';
+import 'package:window_manager/window_manager.dart';
+import 'dart:io';
 
 class ClockWeatherSection extends ConsumerWidget {
   const ClockWeatherSection({super.key});
@@ -30,81 +32,89 @@ class ClockWeatherSection extends ConsumerWidget {
     final isPortrait = size.width < 600;
     final weatherAsync = ref.watch(weatherProvider);
 
-    return Column(
-      crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-      children: [
-        // Clock Section
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-            children: [
-              Text(
-                DateFormat('HH:mm').format(now),
-                style: theme.textTheme.displayLarge?.copyWith(
-                  fontSize: isPortrait ? 104 : 64, // 80%にサイズダウン
-                  fontWeight: FontWeight.w200,
-                  letterSpacing: -2,
-                ),
-              ),
-              Text(
-                DateFormat('EEEE, MMMM d').format(now).toUpperCase(),
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: 14,
-                  letterSpacing: 4,
-                  color: Colors.white70,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-        // Weather Section
-        weatherAsync.when(
-          data: (weather) => Column(
-            crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
-                children: [
-                  Icon(_getWeatherIcon(weather.weatherCode), size: 48, color: Colors.white),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${weather.temperature.round()}°',
-                        style: theme.textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.w300),
-                      ),
-                      Text(
-                        weather.location,
-                        style: theme.textTheme.titleMedium?.copyWith(letterSpacing: 2.0, color: Colors.white60, fontSize: 12),
-                      ),
-                    ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onPanStart: (details) async {
+        if (Platform.isWindows || Platform.isMacOS) {
+          await windowManager.startDragging();
+        }
+      },
+      child: Column(
+        crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          // Clock Section
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+              children: [
+                Text(
+                  DateFormat('HH:mm').format(now),
+                  style: theme.textTheme.displayLarge?.copyWith(
+                    fontSize: isPortrait ? 104 : 64, // 80%にサイズダウン
+                    fontWeight: FontWeight.w200,
+                    letterSpacing: -2,
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Forecast Row (Actual data)
-              Row(
-                mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
-                children: weather.dailyForecast.map((f) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 32.0),
-                    child: _ForecastItem(
-                      day: DateFormat('E').format(f.date).toUpperCase(),
-                      icon: _getWeatherIcon(f.weatherCode),
-                      temp: '${f.maxTemp.round()}°/${f.minTemp.round()}°',
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
+                ),
+                Text(
+                  DateFormat('EEEE, MMMM d').format(now).toUpperCase(),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontSize: 14,
+                    letterSpacing: 4,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
           ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, stack) => const Text('天気取得エラー', style: TextStyle(color: Colors.white54)),
-        ),
-      ],
+          const SizedBox(height: 32),
+          // Weather Section
+          weatherAsync.when(
+            data: (weather) => Column(
+              crossAxisAlignment: isPortrait ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
+                  children: [
+                    Icon(_getWeatherIcon(weather.weatherCode), size: 48, color: Colors.white),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${weather.temperature.round()}°',
+                          style: theme.textTheme.displayLarge?.copyWith(fontSize: 48, fontWeight: FontWeight.w300),
+                        ),
+                        Text(
+                          weather.location,
+                          style: theme.textTheme.titleMedium?.copyWith(letterSpacing: 2.0, color: Colors.white60, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Forecast Row (Actual data)
+                Row(
+                  mainAxisAlignment: isPortrait ? MainAxisAlignment.center : MainAxisAlignment.start,
+                  children: weather.dailyForecast.map((f) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 32.0),
+                      child: _ForecastItem(
+                        day: DateFormat('E').format(f.date).toUpperCase(),
+                        icon: _getWeatherIcon(f.weatherCode),
+                        temp: '${f.maxTemp.round()}°/${f.minTemp.round()}°',
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => const Text('天気取得エラー', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
     );
   }
 }

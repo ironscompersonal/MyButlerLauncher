@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io';
 import '../../../core/services/ai_insight_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/weather_service.dart';
@@ -17,6 +18,130 @@ import '../../../core/constants/api_constants.dart';
 import 'package:intl/intl.dart';
 import 'dart:typed_data';
 import '../../../core/services/health_service.dart';
+import '../../../core/services/mcp_service.dart';
+import '../../../core/services/environment_service.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+
+// --- Butler Card States ---
+
+enum ButlerCardMode { insight, listening, thinking, chat }
+
+class ButlerCardState {
+  final ButlerCardMode mode;
+  final String content;
+  final String? lastRecognition;
+
+  ButlerCardState({
+    required this.mode,
+    required this.content,
+    this.lastRecognition,
+  });
+
+  ButlerCardState copyWith({
+    ButlerCardMode? mode,
+    String? content,
+    String? lastRecognition,
+  }) {
+    return ButlerCardState(
+      mode: mode ?? this.mode,
+      content: content ?? this.content,
+      lastRecognition: lastRecognition ?? this.lastRecognition,
+    );
+  }
+}
+
+class ButlerCardNotifier extends StateNotifier<ButlerCardState> {
+  final Ref ref;
+  final SpeechToText _speech = SpeechToText();
+
+  ButlerCardNotifier(this.ref) : super(ButlerCardState(mode: ButlerCardMode.insight, content: ''));
+
+  Future<void> initialize() async {
+    // インサイトが更新されたらカードも更新するリスナー
+    ref.listen(aiInsightProvider, (previous, next) {
+      next.whenData((text) {
+        if (state.mode == ButlerCardMode.insight) {
+          state = state.copyWith(content: text);
+        }
+      });
+    });
+    
+    // 初期値設定
+    final initialInsight = ref.read(aiInsightProvider).maybeWhen(data: (d) => d, orElse: () => 'ご主人様、状況を整理しております。');
+    state = state.copyWith(content: initialInsight);
+  }
+
+  Future<void> startListening() async {
+    bool available = await _speech.initialize(
+      onError: (error) => print('STT Error: $error'),
+      onStatus: (status) => print('STT Status: $status'),
+    );
+    
+    if (available) {
+      // システムのデフォルトロケールを取得（通常は ja_JP になるはず）
+      final systemLocale = await _speech.systemLocale();
+      final localeId = systemLocale?.localeId ?? 'ja_JP';
+      print('STT using locale: $localeId');
+
+      state = state.copyWith(mode: ButlerCardMode.listening, lastRecognition: 'お聞きしております...');
+      
+      await _speech.listen(
+        onResult: (result) {
+          // 認識中の文字をリアルタイムにカードへ反映
+          state = state.copyWith(lastRecognition: result.recognizedWords);
+          if (result.finalResult) {
+            _processCommand(result.recognizedWords);
+          }
+        },
+        localeId: localeId,
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+        partialResults: true,
+        cancelOnError: true,
+        listenMode: ListenMode.confirmation,
+      );
+    } else {
+      state = state.copyWith(content: '申し訳ありません、マイクの使用準備ができませんでした。');
+    }
+  }
+
+  Future<void> stopListening() async {
+    await _speech.stop();
+  }
+
+  Future<void> _processCommand(String command) async {
+    if (command.isEmpty) {
+      state = state.copyWith(mode: ButlerCardMode.insight);
+      return;
+    }
+
+    state = state.copyWith(mode: ButlerCardMode.thinking, content: '「$command」\n...承知いたしました。少々お待ちください。');
+
+    final chatService = ref.read(chatServiceProvider);
+    if (chatService == null) {
+      state = state.copyWith(mode: ButlerCardMode.insight, content: 'APIキーが設定されていないため、お答えできません。');
+      return;
+    }
+
+    try {
+      final response = await chatService.sendMessage(command);
+      state = state.copyWith(mode: ButlerCardMode.chat, content: response);
+    } catch (e) {
+      state = state.copyWith(mode: ButlerCardMode.insight, content: '不具合が発生しました: $e');
+    }
+  }
+
+  void resetToInsight() {
+    final insight = ref.read(aiInsightProvider).maybeWhen(data: (d) => d, orElse: () => '');
+    state = state.copyWith(mode: ButlerCardMode.insight, content: insight);
+  }
+}
+
+final butlerCardProvider = StateNotifierProvider<ButlerCardNotifier, ButlerCardState>((ref) {
+  return ButlerCardNotifier(ref);
+});
+
+// --- Existing Providers ---
 
 // --- Time Provider ---
 
@@ -145,6 +270,11 @@ final aiApiKeyProvider = StateNotifierProvider<ApiKeyNotifier, String>((ref) {
 // --- Google Data Summary Provider ---
 
 final googleDataSummaryProvider = FutureProvider<String>((ref) async {
+  if (!Platform.isAndroid) {
+    // デスクトップ版での検証用モック
+    return '\n--- Googleサービス情報 ---\n【メール】未読はありません。\n【予定】14:00 役員会議, 18:00 会食\n【タスク】資料作成、クリーニング回収\n';
+  }
+  
   final user = ref.watch(googleUserProvider);
   if (user == null) return '';
 
@@ -157,7 +287,7 @@ final googleDataSummaryProvider = FutureProvider<String>((ref) async {
     // 並列で取得して高速化
     final results = await Future.wait([
       googleService.fetchRecentEmails(),
-      googleService.fetchTodayEvents(),
+      googleService.fetchUpcomingEvents(),
       googleService.fetchPendingTasks(),
     ]);
     
@@ -195,6 +325,43 @@ final weeklyHealthDataProvider = FutureProvider<List<Map<String, dynamic>>>((ref
   return await service.fetchWeeklyHealthData();
 });
 
+// --- Environment Provider (Task A/B) ---
+
+final environmentProvider = FutureProvider<EnvironmentData>((ref) async {
+  final service = ref.read(environmentServiceProvider);
+  final weather = await ref.watch(weatherProvider.future);
+  return await service.fetchCurrentEnvironment(weather);
+});
+
+// --- MCP Data Providers ---
+
+final nisaDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final service = ref.read(mcpServiceProvider);
+  final result = await service.getNisaStatus();
+  return result.isSuccess ? result.data : {};
+});
+
+final accountSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final service = ref.read(mcpServiceProvider);
+  final result = await service.getAccountSummary();
+  return result.isSuccess ? result.data : {};
+});
+
+final investmentTrustListProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.read(mcpServiceProvider);
+  final result = await service.getInvestmentTrustList();
+  return result.isSuccess ? (result.data['items'] as List).cast<Map<String, dynamic>>() : [];
+});
+
+// --- AI Insight Service Provider ---
+
+final aiInsightServiceProvider = Provider<AIInsightService?>((ref) {
+  final apiKey = ref.watch(aiApiKeyProvider);
+  if (apiKey.isEmpty) return null;
+  final mcpService = ref.read(mcpServiceProvider);
+  return AIInsightService(apiKey, mcpService: mcpService);
+});
+
 // --- AI Insight Provider ---
 
 final aiInsightProvider = FutureProvider<String>((ref) async {
@@ -202,6 +369,8 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
   final notifications = ref.watch(notificationListProvider);
   final googleInfoAsync = ref.watch(googleDataSummaryProvider);
   final healthDataAsync = ref.watch(healthDataProvider);
+  final now = DateTime.now();
+  final timeStr = DateFormat('yyyy年MM月dd日(E) HH時mm分', 'ja_JP').format(now);
   
   if (apiKey.isEmpty) {
     return '主人、AIの使用にはAPIキーの設定が必要でございます。\n現在は通知の待機モードとなっております。';
@@ -254,12 +423,41 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
     loading: () => '取得中...',
   );
 
-  final service = AIInsightService(apiKey);
-  final now = DateTime.now();
-  final timeStr = DateFormat('yyyy年MM月dd日(E) HH時mm分', 'ja_JP').format(now);
-  
-  final rawData = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo\n$healthData';
+  final service = ref.watch(aiInsightServiceProvider);
+  if (service == null) return 'APIキーが未設定です。';
+
+  final nisaDataAsync = ref.watch(nisaDataProvider);
+  final nisaData = nisaDataAsync.maybeWhen(data: (d) => d, orElse: () => <String, dynamic>{});
+
+  final investmentTrustsAsync = ref.watch(investmentTrustListProvider);
+  final investmentTrusts = investmentTrustsAsync.maybeWhen(data: (d) => d, orElse: () => <Map<String, dynamic>>[]);
+
+  final envDataAsync = ref.watch(environmentProvider);
+  final envInfo = envDataAsync.maybeWhen(
+    data: (d) => '\n【現在の環境】\n${d.description}',
+    orElse: () => '',
+  );
+
   try {
+    // 朝（5時〜10時）の場合は複合インサイトを優先
+    final hour = now.hour;
+    if (hour >= 5 && hour < 10 && nisaData.isNotEmpty && healthData.isNotEmpty) {
+      return await service.getCompoundInsight(
+        healthData: healthData,
+        nisaData: nisaData,
+        notifications: notificationData.isNotEmpty ? notificationData : '新しい通知はありません。',
+        environment: envInfo,
+      );
+    }
+
+    final nisaInfo = nisaData.isNotEmpty ? '\n【資産状況(楽天証券)】\nつみたて枠残額: ${nisaData['tsumitate_limit_remaining']}円, 成長投資枠残額: ${nisaData['growth_limit_remaining']}円' : '';
+    
+    String trustInfo = '';
+    if (investmentTrusts.isNotEmpty) {
+      trustInfo = '\n【保有投資信託】\n' + investmentTrusts.map((t) => '${t['name']}: 評価額${t['value']}円 (損益+${t['profit']}円)').join('\n');
+    }
+
+    final rawData = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo\n$healthData$envInfo$nisaInfo$trustInfo';
     return await service.getSimplifiedInsight(rawData);
   } catch (e) {
     return 'ご主人様、AIとの通信中に不具合が発生しました。設定やネットワークを確認してください。';
@@ -279,11 +477,26 @@ final chatServiceProvider = Provider<ChatService?>((ref) {
   final notifications = ref.watch(notificationListProvider);
   final personalProfile = ref.watch(personalProfileProvider);
   
+  final nisaData = ref.watch(nisaDataProvider).maybeWhen(data: (d) => d, orElse: () => {});
+  final accountSummary = ref.watch(accountSummaryProvider).maybeWhen(data: (d) => d, orElse: () => {});
+  
   final now = DateTime.now();
   final timeStr = DateFormat('yyyy年MM月dd日(E) HH時mm分', 'ja_JP').format(now);
 
   // 直近のコンテキストを構築
   String context = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【現在のコンテキスト】\n$googleInfo\n';
+  
+  if (nisaData.isNotEmpty) {
+    context += '\n【資産状況(楽天証券)】\n';
+    context += 'NISAつみたて枠残額: ${nisaData['tsumitate_limit_remaining']}円\n';
+    context += '成長投資枠残額: ${nisaData['growth_limit_remaining']}円\n';
+    context += '次回予定日: ${nisaData['next_scheduled_date']}\n';
+  }
+  
+  if (accountSummary.isNotEmpty) {
+    context += '証券口座総資産: ${accountSummary['total_assets']}円\n';
+  }
+
   if (notifications.isNotEmpty) {
     context += '\n【通知履歴】\n';
     context += notifications.take(5).map((n) => '送信者: ${n['sender']}, 内容: ${n['text']}').join('\n');

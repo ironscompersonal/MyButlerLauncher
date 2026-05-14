@@ -1,25 +1,28 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io';
 
 class NotificationService {
   static const _channel = MethodChannel('com.mybutler.launcher_app/notifications');
   final Ref _ref;
 
   NotificationService(this._ref) {
-    _channel.setMethodCallHandler(_handleMethod);
+    if (Platform.isAndroid) {
+      _channel.setMethodCallHandler(_handleMethod);
+    }
   }
 
   Future<void> _handleMethod(MethodCall call) async {
     switch (call.method) {
       case 'onNotificationReceived':
         final Map<dynamic, dynamic> data = call.arguments;
-        // 通知をプロバイダー経由で記録する
         _ref.read(notificationListProvider.notifier).addNotification(data);
         break;
     }
   }
 
   Future<bool> checkPermission() async {
+    if (!Platform.isAndroid) return true; // デスクトップ版では常に許可扱い
     try {
       final bool result = await _channel.invokeMethod('checkNotificationPermission');
       return result;
@@ -30,6 +33,7 @@ class NotificationService {
   }
 
   Future<String> getAppSignature() async {
+    if (!Platform.isAndroid) return "DESKTOP_MOCK_SIGNATURE";
     try {
       final String result = await _channel.invokeMethod('getAppSignature');
       return result;
@@ -49,7 +53,6 @@ class NotificationListNotifier extends StateNotifier<List<Map<dynamic, dynamic>>
   NotificationListNotifier() : super([]);
 
   void addNotification(Map<dynamic, dynamic> notification) {
-    // 最大20件程度を保持
     state = [notification, ...state].take(20).toList();
   }
 }

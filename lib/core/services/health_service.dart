@@ -1,6 +1,7 @@
 import 'package:health/health.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
+import 'dart:math';
 
 class HealthService {
   final Health _health = Health();
@@ -18,7 +19,7 @@ class HealthService {
 
   /// Health Connectがインストールされているか確認
   Future<bool> isHealthConnectInstalled() async {
-    if (!Platform.isAndroid) return false;
+    if (!Platform.isAndroid) return true; // デスクトップ版では常にtrue（モック用）
     try {
       return await _health.isHealthConnectAvailable();
     } catch (e) {
@@ -28,6 +29,7 @@ class HealthService {
 
   /// Play StoreのHealth Connectページを開く
   Future<void> openHealthConnectStore() async {
+    if (!Platform.isAndroid) return;
     final url = Uri.parse('market://details?id=com.google.android.apps.healthdata');
     if (await canLaunchUrl(url)) {
       await launchUrl(url);
@@ -39,8 +41,8 @@ class HealthService {
 
   /// 権限のリクエスト
   Future<bool> requestPermissions() async {
+    if (!Platform.isAndroid) return true;
     try {
-      // 全ての権限をREADで要求
       final permissions = _types.map((e) => HealthDataAccess.READ).toList();
       return await _health.requestAuthorization(_types, permissions: permissions);
     } catch (e) {
@@ -51,6 +53,8 @@ class HealthService {
 
   /// 直近24時間のデータを取得
   Future<Map<String, dynamic>> fetchHealthSummary() async {
+    if (!Platform.isAndroid) return _getMockSummary();
+
     final now = DateTime.now();
     final yesterday = now.subtract(const Duration(days: 1));
     
@@ -58,63 +62,77 @@ class HealthService {
       'steps': 0,
       'sleep_minutes': 0,
       'avg_heart_rate': 0,
+      'status': 'searching',
+      'details': '', 
     };
 
     try {
-      // 権限確認
-      final permissions = _types.map((e) => HealthDataAccess.READ).toList();
-      bool? hasPermission = await _health.hasPermissions(_types, permissions: permissions);
-      if (hasPermission != true) {
-        bool authorized = await requestPermissions();
-        if (!authorized) return summary;
+      // 接続可能かチェック
+      bool? isSupported = await _health.isHealthConnectAvailable();
+      if (isSupported != true) {
+        summary['status'] = 'not_supported';
+        summary['details'] = 'ヘルスコネクトが利用できません。';
+        return summary;
       }
 
-      // データ取得
-      List<HealthDataPoint> healthData = await _health.getHealthDataFromTypes(
-        startTime: yesterday,
-        endTime: now,
-        types: _types,
-      );
+      final permissions = _types.map((e) => HealthDataAccess.READ).toList();
+      bool? hasPermission = await _health.hasPermissions(_types, permissions: permissions);
 
-      // 集計
-      int steps = 0;
-      int sleepMinutes = 0;
-      List<double> heartRates = [];
-
-      for (var point in healthData) {
-        if (point.type == HealthDataType.STEPS) {
-          steps += (point.value as NumericHealthValue).numericValue.toInt();
-        } else if (point.type == HealthDataType.SLEEP_SESSION) {
-          final start = point.dateFrom;
-          final end = point.dateTo;
-          sleepMinutes += end.difference(start).inMinutes;
-        } else if (point.type == HealthDataType.HEART_RATE) {
-          heartRates.add((point.value as NumericHealthValue).numericValue.toDouble());
+      if (hasPermission != true) {
+        bool authorized = await requestPermissions();
+        if (!authorized) {
+          summary['status'] = 'denied';
+          summary['details'] = '権限が拒否されました。設定を確認してください。';
+          return summary;
         }
       }
 
-      summary['steps'] = steps;
-      summary['sleep_minutes'] = sleepMinutes;
+      int totalSteps = 0;
+      List<double> heartRates = [];
+      int totalSleepMinutes = 0;
+
+      // 型ごとに個別に取得を試みる（一つがエラーでも他は生かす）
+      for (var type in _types) {
+        try {
+          List<HealthDataPoint> data = await _health.getHealthDataFromTypes(
+            startTime: yesterday,
+            endTime: now,
+            types: [type],
+          );
+          
+          print('Fetched ${data.length} points for type: $type');
+
+          for (var point in data) {
+            if (point.type == HealthDataType.STEPS) {
+              totalSteps += (point.value as NumericHealthValue).numericValue.toInt();
+            } else if (point.type == HealthDataType.HEART_RATE) {
+              heartRates.add((point.value as NumericHealthValue).numericValue.toDouble());
+            } else if (point.type == HealthDataType.SLEEP_ASLEEP) {
+              totalSleepMinutes += point.dateTo.difference(point.dateFrom).inMinutes;
+            } else if (point.type == HealthDataType.WEIGHT) {
+              summary['weight'] = (point.value as NumericHealthValue).numericValue.toDouble();
+            }
+          }
+        } catch (e) {
+          print('Error fetching $type: $e');
+        }
+      }
+
+      summary['steps'] = totalSteps;
+      summary['sleep_minutes'] = totalSleepMinutes;
       if (heartRates.isNotEmpty) {
         summary['avg_heart_rate'] = (heartRates.reduce((a, b) => a + b) / heartRates.length).round();
       }
-
-      // 最新の体組成データを取得
-      for (var type in [HealthDataType.WEIGHT, HealthDataType.BODY_FAT_PERCENTAGE, HealthDataType.LEAN_BODY_MASS, HealthDataType.BODY_WATER_MASS]) {
-        final points = healthData.where((p) => p.type == type).toList();
-        if (points.isNotEmpty) {
-          points.sort((a, b) => b.dateFrom.compareTo(a.dateFrom)); // 最新順
-          final latest = points.first;
-          final val = (latest.value as NumericHealthValue).numericValue.toDouble();
-          if (type == HealthDataType.WEIGHT) summary['weight'] = val;
-          if (type == HealthDataType.BODY_FAT_PERCENTAGE) summary['body_fat'] = val;
-          if (type == HealthDataType.LEAN_BODY_MASS) summary['lean_mass'] = val;
-          if (type == HealthDataType.BODY_WATER_MASS) summary['body_water'] = val;
-        }
+      
+      summary['status'] = (totalSteps > 0 || heartRates.isNotEmpty || totalSleepMinutes > 0) ? 'success' : 'no_data';
+      if (summary['status'] == 'no_data') {
+        summary['details'] = '権限はありますが、過去24時間のデータがヘルスコネクトに存在しません。';
       }
 
     } catch (e) {
-      print('Error fetching health data: $e');
+      print('Health Overall Error: $e');
+      summary['status'] = 'error';
+      summary['details'] = 'システムエラーが発生しました: $e';
     }
 
     return summary;
@@ -122,8 +140,10 @@ class HealthService {
 
   /// 週間データ（直近7日間）を取得
   Future<List<Map<String, dynamic>>> fetchWeeklyHealthData() async {
+    if (!Platform.isAndroid) return _getMockWeeklyData();
+
     final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 6)); // 今日を含めて7日間
+    final sevenDaysAgo = now.subtract(const Duration(days: 6));
     final startDate = DateTime(sevenDaysAgo.year, sevenDaysAgo.month, sevenDaysAgo.day);
     
     List<Map<String, dynamic>> weeklyData = [];
@@ -139,7 +159,6 @@ class HealthService {
         types: _types,
       );
 
-      // 日ごとに集計
       for (int i = 0; i < 7; i++) {
         final day = startDate.add(Duration(days: i));
         if (day.isAfter(now)) break;
@@ -179,5 +198,35 @@ class HealthService {
     }
 
     return weeklyData;
+  }
+
+  // --- Mock Helpers ---
+
+  Map<String, dynamic> _getMockSummary() {
+    return {
+      'steps': 8540,
+      'sleep_minutes': 425,
+      'avg_heart_rate': 68,
+      'weight': 72.5,
+      'body_fat': 18.2,
+      'lean_mass': 59.3,
+      'body_water': 42.1,
+    };
+  }
+
+  List<Map<String, dynamic>> _getMockWeeklyData() {
+    final now = DateTime.now();
+    final random = Random();
+    return List.generate(7, (i) {
+      final date = now.subtract(Duration(days: 6 - i));
+      return {
+        'date': date,
+        'steps': 5000 + random.nextInt(5000),
+        'weight': 72.0 + random.nextDouble(),
+        'body_fat': 18.0 + random.nextDouble(),
+        'lean_mass': 59.0,
+        'body_water': 42.0,
+      };
+    });
   }
 }

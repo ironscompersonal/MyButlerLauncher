@@ -16,10 +16,30 @@ import 'features/home/providers/home_providers.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:window_manager/window_manager.dart';
+import 'dart:io';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ja_JP', null);
+  
+  if (Platform.isWindows || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+    WindowOptions windowOptions = const WindowOptions(
+      size: Size(400, 800), // 少しサイズを小さく調整
+      minimumSize: Size(300, 600),
+      center: false, // 中央ではなく座標指定
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.hidden,
+    );
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.setPosition(const Offset(100, 100)); // 画面左上に配置
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
+
   runApp(const ProviderScope(child: MyButlerLauncher()));
 }
 
@@ -58,23 +78,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _checkEmailsAndRegisterEvents();
     });
     
-    // Googleログインの自動試行
-    Future.microtask(() async {
-      final googleSignIn = ref.read(googleSignInProvider);
-      try {
-        final account = await googleSignIn.signInSilently();
-        if (account != null) {
-          ref.read(googleUserProvider.notifier).state = account;
+    // Googleログインの自動試行（Androidのみ）
+    if (Platform.isAndroid) {
+      Future.microtask(() async {
+        final googleSignIn = ref.read(googleSignInProvider);
+        try {
+          final account = await googleSignIn.signInSilently();
+          if (account != null) {
+            ref.read(googleUserProvider.notifier).state = account;
+          }
+        } catch (e) {
+          debugPrint('Silent sign-in failed: $e');
         }
-      } catch (e) {
-        debugPrint('Silent sign-in failed: $e');
-      }
 
-      final hasPermission = await ref.read(notificationServiceProvider).checkPermission();
-      if (!hasPermission && mounted) {
-        _showPermissionDialog();
-      }
-    });
+        final hasPermission = await ref.read(notificationServiceProvider).checkPermission();
+        if (!hasPermission && mounted) {
+          _showPermissionDialog();
+        }
+      });
+    }
   }
 
   @override
@@ -219,6 +241,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
+          // Drag area: 背景画像の上、かつボタン等の手前に配置
+          if (Platform.isWindows || Platform.isMacOS)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onPanStart: (details) async {
+                  await windowManager.startDragging();
+                },
+              ),
+            ),
           // Gradient Overlay
           Positioned.fill(
             child: Container(
@@ -282,6 +314,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
+          // Drag Handle (Top Center, Desktop only) - Stackの最後に配置して最前面にする
+          if (Platform.isWindows || Platform.isMacOS)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 40, // 掴みやすいように高さを確保
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onPanStart: (details) async {
+                  await windowManager.startDragging();
+                },
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

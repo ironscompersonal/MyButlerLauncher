@@ -24,6 +24,7 @@ dependencies:
   googleapis_auth: ^1.6.0
   speech_to_text: ^6.6.2
   health: ^13.1.3
+  window_manager: ^0.4.3
 
 dev_dependencies:
   flutter_test:

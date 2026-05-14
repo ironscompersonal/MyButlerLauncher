@@ -1,0 +1,14 @@
+# Strict ignore for AI processing
+build/
+.dart_tool/
+android/app/build/
+ios/Pods/
+node_modules/
+.git/
+.idea/
+.vscode/
+*.bin
+*.lock
+*.jks
+*.keystore
+logcat*.txt

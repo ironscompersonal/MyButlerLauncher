@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/home_providers.dart';
 import '../../../core/services/notification_service.dart';
+import 'dart:io';
 class ProfileIconWidget extends ConsumerWidget {
   const ProfileIconWidget({super.key});
 
@@ -70,6 +71,14 @@ class ProfileIconWidget extends ConsumerWidget {
             const Divider(height: 20, color: Colors.white10),
             if (user == null)
               _buildActionTile(Icons.login, 'Googleでログイン', () async {
+                if (!Platform.isAndroid) {
+                  // デスクトップ版ではログイン不可のため、通知のみ表示
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('デスクトップ版は検証用モード（モックデータ）で動作しています。')),
+                  );
+                  Navigator.pop(context);
+                  return;
+                }
                 try {
                   // 一旦サインアウトしてからサインインを試みる（キャッシュクリア）
                   await googleSignIn.signOut();
