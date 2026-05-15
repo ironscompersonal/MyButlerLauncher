@@ -1,5 +1,3 @@
-import '../utils/error_handler.dart';
-
 class MCPToolResult {
   final bool isSuccess;
   final Map<String, dynamic> data;
@@ -8,7 +6,7 @@ class MCPToolResult {
   MCPToolResult({required this.isSuccess, this.data = const {}, this.errorMessage});
 }
 
-/// MCP連携の基盤サービス（楽天証券関連はすべて削除済み）
-class MCPService with ButlerErrorHandling {
+/// MCP連携の基盤サービス（クリーン版）
+class MCPService {
   // 現在、特定の外部ツール連携は定義されていません。
 }

@@ -20,7 +20,9 @@ import 'dart:typed_data';
 import '../../../core/services/health_service.dart';
 import '../../../core/services/mcp_service.dart';
 import '../../../core/services/environment_service.dart';
-import 'package:speech_to_text/speech_to_text.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 // --- Butler Card States ---
 
@@ -52,7 +54,8 @@ class ButlerCardState {
 
 class ButlerCardNotifier extends StateNotifier<ButlerCardState> {
   final Ref ref;
-  final SpeechToText _speech = SpeechToText();
+  final AudioRecorder _recorder = AudioRecorder();
+  String? _recordingPath;
 
   ButlerCardNotifier(this.ref) : super(ButlerCardState(mode: ButlerCardMode.insight, content: ''));
 
@@ -72,62 +75,64 @@ class ButlerCardNotifier extends StateNotifier<ButlerCardState> {
   }
 
   Future<void> startListening() async {
-    bool available = await _speech.initialize(
-      onError: (error) => print('STT Error: $error'),
-      onStatus: (status) => print('STT Status: $status'),
-    );
-    
-    if (available) {
-      // システムのデフォルトロケールを取得（通常は ja_JP になるはず）
-      final systemLocale = await _speech.systemLocale();
-      final localeId = systemLocale?.localeId ?? 'ja_JP';
-      print('STT using locale: $localeId');
-
-      state = state.copyWith(mode: ButlerCardMode.listening, lastRecognition: 'お聞きしております...');
+    if (await _recorder.hasPermission()) {
+      final tempDir = await getTemporaryDirectory();
+      _recordingPath = '${tempDir.path}/butler_voice.m4a';
       
-      await _speech.listen(
-        onResult: (result) {
-          // 認識中の文字をリアルタイムにカードへ反映
-          state = state.copyWith(lastRecognition: result.recognizedWords);
-          if (result.finalResult) {
-            _processCommand(result.recognizedWords);
-          }
-        },
-        localeId: localeId,
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
-        partialResults: true,
-        cancelOnError: true,
-        listenMode: ListenMode.confirmation,
+      const config = RecordConfig();
+      await _recorder.start(config, path: _recordingPath!);
+      
+      state = state.copyWith(
+        mode: ButlerCardMode.listening, 
+        lastRecognition: 'ご指示を承ります（録音中...）',
       );
     } else {
-      state = state.copyWith(content: '申し訳ありません、マイクの使用準備ができませんでした。');
+      state = state.copyWith(content: 'マイクの権限がありません。設定をご確認ください。');
     }
   }
 
   Future<void> stopListening() async {
-    await _speech.stop();
+    final path = await _recorder.stop();
+    if (path != null) {
+      _processVoice(path);
+    } else {
+      state = state.copyWith(mode: ButlerCardMode.insight);
+    }
   }
 
-  Future<void> _processCommand(String command) async {
-    if (command.isEmpty) {
-      state = state.copyWith(mode: ButlerCardMode.insight);
+  Future<void> _processVoice(String path) async {
+    state = state.copyWith(
+      mode: ButlerCardMode.thinking, 
+      content: 'お声を解析しております。少々お待ちください。'
+    );
+
+    final apiKey = ref.read(aiApiKeyProvider);
+    if (apiKey.isEmpty) {
+      state = state.copyWith(mode: ButlerCardMode.insight, content: 'APIキーが未設定です。');
       return;
     }
 
-    state = state.copyWith(mode: ButlerCardMode.thinking, content: '「$command」\n...承知いたしました。少々お待ちください。');
-
-    final chatService = ref.read(chatServiceProvider);
-    if (chatService == null) {
-      state = state.copyWith(mode: ButlerCardMode.insight, content: 'APIキーが設定されていないため、お答えできません。');
-      return;
-    }
-
+    final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: apiKey);
+    
     try {
-      final response = await chatService.sendMessage(command);
-      state = state.copyWith(mode: ButlerCardMode.chat, content: response);
+      final audioFile = File(path);
+      final audioBytes = await audioFile.readAsBytes();
+      
+      // AIに音声を直接渡し、テキスト化と意図解釈を同時に行わせる
+      final response = await model.generateContent([
+        Content.multi([
+          TextPart('以下の音声を解析し、ご主人様が話した内容を日本語でテキスト化してください。'
+                   'その後、その依頼に対する執事としての最適な回答を生成してください。'
+                   '出力は執事としての回答のみで結構です。'),
+          DataPart('audio/m4a', audioBytes),
+        ])
+      ]);
+
+      final answer = response.text ?? '聞き取ることができませんでした。';
+      state = state.copyWith(mode: ButlerCardMode.chat, content: answer);
     } catch (e) {
-      state = state.copyWith(mode: ButlerCardMode.insight, content: '不具合が発生しました: $e');
+      print('Audio Analysis Error: $e');
+      state = state.copyWith(mode: ButlerCardMode.insight, content: '聴解中に支障が生じました: $e');
     }
   }
 

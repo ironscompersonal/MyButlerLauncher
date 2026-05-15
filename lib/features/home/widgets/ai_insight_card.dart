@@ -30,37 +30,41 @@ class AIInsightCard extends ConsumerWidget {
   }
 
   Widget _buildCard(BuildContext context, ButlerCardState state, ThemeData theme, WidgetRef ref) {
-    final text = state.mode == ButlerCardMode.listening 
-        ? (state.lastRecognition ?? 'お聞きしております...')
+    final isListening = state.mode == ButlerCardMode.listening;
+    final text = isListening 
+        ? (state.lastRecognition?.isEmpty ?? true ? 'お聞きしております...' : state.lastRecognition!)
         : state.content;
     
     final lines = text.split('\n');
     
     Color accentColor = StyleConstants.statusLineNormal;
-    if (state.mode == ButlerCardMode.listening) {
-      accentColor = Colors.lightBlueAccent;
+    if (isListening) {
+      accentColor = Colors.cyanAccent;
     } else if (state.mode == ButlerCardMode.thinking) {
       accentColor = Colors.purpleAccent;
-    } else if (state.mode == ButlerCardMode.chat) {
-      accentColor = StyleConstants.statusLineNormal;
     }
 
     return GlassCard(
       accentColor: accentColor,
-      isVibrant: state.mode == ButlerCardMode.listening || state.mode == ButlerCardMode.thinking,
+      isVibrant: isListening || state.mode == ButlerCardMode.thinking,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
+              // アニメーションを想起させるマイクアイコン
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.1),
+                  color: accentColor.withOpacity(isListening ? 0.2 : 0.1),
                   shape: BoxShape.circle,
+                  boxShadow: isListening ? [
+                    BoxShadow(color: accentColor.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)
+                  ] : [],
                 ),
                 child: Icon(
-                  state.mode == ButlerCardMode.listening ? LucideIcons.mic : LucideIcons.sparkles, 
+                  isListening ? LucideIcons.mic : LucideIcons.sparkles, 
                   size: 20, 
                   color: accentColor
                 ),
