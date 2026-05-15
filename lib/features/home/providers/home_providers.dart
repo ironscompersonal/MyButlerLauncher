@@ -335,31 +335,12 @@ final environmentProvider = FutureProvider<EnvironmentData>((ref) async {
 
 // --- MCP Data Providers ---
 
-final nisaDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final service = ref.read(mcpServiceProvider);
-  final result = await service.getNisaStatus();
-  return result.isSuccess ? result.data : {};
-});
-
-final accountSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final service = ref.read(mcpServiceProvider);
-  final result = await service.getAccountSummary();
-  return result.isSuccess ? result.data : {};
-});
-
-final investmentTrustListProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final service = ref.read(mcpServiceProvider);
-  final result = await service.getInvestmentTrustList();
-  return result.isSuccess ? (result.data['items'] as List).cast<Map<String, dynamic>>() : [];
-});
-
 // --- AI Insight Service Provider ---
 
 final aiInsightServiceProvider = Provider<AIInsightService?>((ref) {
   final apiKey = ref.watch(aiApiKeyProvider);
   if (apiKey.isEmpty) return null;
-  final mcpService = ref.read(mcpServiceProvider);
-  return AIInsightService(apiKey, mcpService: mcpService);
+  return AIInsightService(apiKey);
 });
 
 // --- AI Insight Provider ---
@@ -426,12 +407,6 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
   final service = ref.watch(aiInsightServiceProvider);
   if (service == null) return 'APIキーが未設定です。';
 
-  final nisaDataAsync = ref.watch(nisaDataProvider);
-  final nisaData = nisaDataAsync.maybeWhen(data: (d) => d, orElse: () => <String, dynamic>{});
-
-  final investmentTrustsAsync = ref.watch(investmentTrustListProvider);
-  final investmentTrusts = investmentTrustsAsync.maybeWhen(data: (d) => d, orElse: () => <Map<String, dynamic>>[]);
-
   final envDataAsync = ref.watch(environmentProvider);
   final envInfo = envDataAsync.maybeWhen(
     data: (d) => '\n【現在の環境】\n${d.description}',
@@ -439,25 +414,7 @@ final aiInsightProvider = FutureProvider<String>((ref) async {
   );
 
   try {
-    // 朝（5時〜10時）の場合は複合インサイトを優先
-    final hour = now.hour;
-    if (hour >= 5 && hour < 10 && nisaData.isNotEmpty && healthData.isNotEmpty) {
-      return await service.getCompoundInsight(
-        healthData: healthData,
-        nisaData: nisaData,
-        notifications: notificationData.isNotEmpty ? notificationData : '新しい通知はありません。',
-        environment: envInfo,
-      );
-    }
-
-    final nisaInfo = nisaData.isNotEmpty ? '\n【資産状況(楽天証券)】\nつみたて枠残額: ${nisaData['tsumitate_limit_remaining']}円, 成長投資枠残額: ${nisaData['growth_limit_remaining']}円' : '';
-    
-    String trustInfo = '';
-    if (investmentTrusts.isNotEmpty) {
-      trustInfo = '\n【保有投資信託】\n' + investmentTrusts.map((t) => '${t['name']}: 評価額${t['value']}円 (損益+${t['profit']}円)').join('\n');
-    }
-
-    final rawData = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo\n$healthData$envInfo$nisaInfo$trustInfo';
+    final rawData = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【通知履歴】\n$notificationData\n$googleInfo\n【公共交通機関の運行情報】\n$transitInfo\n$healthData$envInfo';
     return await service.getSimplifiedInsight(rawData);
   } catch (e) {
     return 'ご主人様、AIとの通信中に不具合が発生しました。設定やネットワークを確認してください。';
@@ -477,26 +434,12 @@ final chatServiceProvider = Provider<ChatService?>((ref) {
   final notifications = ref.watch(notificationListProvider);
   final personalProfile = ref.watch(personalProfileProvider);
   
-  final nisaData = ref.watch(nisaDataProvider).maybeWhen(data: (d) => d, orElse: () => {});
-  final accountSummary = ref.watch(accountSummaryProvider).maybeWhen(data: (d) => d, orElse: () => {});
-  
   final now = DateTime.now();
   final timeStr = DateFormat('yyyy年MM月dd日(E) HH時mm分', 'ja_JP').format(now);
 
-  // 直近のコンテキストを構築
+  // 直近のコンテキストを構築（資産情報は除外）
   String context = '【現在日時】\n$timeStr\n\n【ご主人様に関する情報】\n$personalProfile\n\n【現在のコンテキスト】\n$googleInfo\n';
   
-  if (nisaData.isNotEmpty) {
-    context += '\n【資産状況(楽天証券)】\n';
-    context += 'NISAつみたて枠残額: ${nisaData['tsumitate_limit_remaining']}円\n';
-    context += '成長投資枠残額: ${nisaData['growth_limit_remaining']}円\n';
-    context += '次回予定日: ${nisaData['next_scheduled_date']}\n';
-  }
-  
-  if (accountSummary.isNotEmpty) {
-    context += '証券口座総資産: ${accountSummary['total_assets']}円\n';
-  }
-
   if (notifications.isNotEmpty) {
     context += '\n【通知履歴】\n';
     context += notifications.take(5).map((n) => '送信者: ${n['sender']}, 内容: ${n['text']}').join('\n');
