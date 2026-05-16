@@ -61,10 +61,13 @@ class _HealthCardState extends ConsumerState<HealthCard> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Rolling 7 Days',
-                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.white38),
+                Flexible(
+                  child: Text(
+                    'Rolling 7 Days',
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.white38, fontSize: 10),
+                    textAlign: TextAlign.end,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

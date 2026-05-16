@@ -69,39 +69,44 @@ class AIInsightCard extends ConsumerWidget {
                   color: accentColor
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'MY AI BUTLER',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2.0,
+              // タイトルをFlexibleに包み、ボタンエリアを確保
+              Flexible(
+                child: Text(
+                  'MY AI BUTLER',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2.0,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
+              // ボタンエリア：InkWellを使用してタイトに配置
               if (state.mode == ButlerCardMode.chat)
-                IconButton(
-                  onPressed: () => ref.read(butlerCardProvider.notifier).resetToInsight(),
-                  tooltip: '報告に戻る',
-                  icon: const Icon(LucideIcons.rotateCcw, size: 20, color: Colors.white54),
+                _buildCustomButton(
+                  icon: LucideIcons.rotateCcw,
+                  onTap: () => ref.read(butlerCardProvider.notifier).resetToInsight(),
+                  color: Colors.white54,
+                  size: 18,
                 ),
-              IconButton(
-                onPressed: () {
+              _buildCustomButton(
+                icon: state.mode == ButlerCardMode.listening ? LucideIcons.micOff : LucideIcons.mic,
+                onTap: () {
                   if (state.mode == ButlerCardMode.listening) {
                     ref.read(butlerCardProvider.notifier).stopListening();
                   } else {
                     ref.read(butlerCardProvider.notifier).startListening();
                   }
                 },
-                tooltip: '執事に話しかける',
-                icon: Icon(
-                  state.mode == ButlerCardMode.listening ? LucideIcons.micOff : LucideIcons.mic, 
-                  size: 22, 
-                  color: state.mode == ButlerCardMode.listening ? Colors.redAccent : Colors.white70
-                ),
+                color: state.mode == ButlerCardMode.listening ? Colors.redAccent : Colors.white70,
+                size: 20,
               ),
             ],
           ),
           const SizedBox(height: 20),
+          if (isListening)
+            _buildVisualizer(state.amplitude),
+          const SizedBox(height: 10),
           if (state.mode == ButlerCardMode.thinking)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
@@ -186,5 +191,87 @@ class AIInsightCard extends ConsumerWidget {
     return RichText(
       text: TextSpan(children: spans),
     );
+  }
+
+  Widget _buildVisualizer(double amplitude) {
+    double normalized = (amplitude + 60) / 60;
+    if (normalized < 0) normalized = 0;
+    if (normalized > 1) normalized = 1;
+
+    return Container(
+      height: 50,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.cyanAccent.withOpacity(0.0), Colors.cyanAccent.withOpacity(0.05), Colors.cyanAccent.withOpacity(0.0)],
+        ),
+      ),
+      child: CustomPaint(
+        painter: WavePainter(normalized),
+      ),
+    );
+  }
+
+  Widget _buildCustomButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color color,
+    required double size,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: size, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class WavePainter extends CustomPainter {
+  final double amplitude;
+  WavePainter(this.amplitude);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.cyanAccent.withOpacity(0.8)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 3); // ネオンの発光効果
+
+    final centerY = size.height / 2;
+    final width = size.width;
+    const count = 40;
+    final spacing = width / count;
+
+    for (int i = 0; i < count; i++) {
+      double distFromCenter = (i - count / 2).abs() / (count / 2);
+      // 中央ほど高く、端ほど低く。amplitudeで全体を揺らす
+      double heightFactor = (1.0 - distFromCenter * 0.7) * (0.1 + 0.9 * amplitude);
+      
+      // サイン波のような揺らぎを追加
+      double wave = 0.8 + 0.2 * (distFromCenter * 3.14).hashCode.toDouble().remainder(1.0);
+      double h = (size.height * 0.9) * heightFactor * wave;
+      if (h < 2) h = 2;
+
+      double x = i * spacing + spacing / 2;
+      canvas.drawLine(
+        Offset(x, centerY - h / 2),
+        Offset(x, centerY + h / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant WavePainter oldDelegate) {
+    return oldDelegate.amplitude != amplitude;
   }
 }

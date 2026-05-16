@@ -1,5 +1,10 @@
 # This is a generated file; do not edit or check into version control.
 device_info_plus=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\device_info_plus-10.1.2\\
+geolocator=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\geolocator-11.1.0\\
+geolocator_android=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\geolocator_android-4.6.1\\
+geolocator_apple=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\geolocator_apple-2.3.9\\
+geolocator_web=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\geolocator_web-3.0.0\\
+geolocator_windows=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\geolocator_windows-0.2.3\\
 google_sign_in=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\google_sign_in-6.2.2\\
 google_sign_in_android=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\google_sign_in_android-6.1.23\\
 google_sign_in_ios=C:\\Users\\irons\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\google_sign_in_ios-5.7.8\\
